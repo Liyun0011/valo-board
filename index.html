@@ -210,6 +210,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       </defs>
       <g id="viewG"><g id="worldG">
         <image id="mapImg" x="0" y="0" width="1000" height="1000"/>
+        <image id="customImg" x="0" y="0" width="1000" height="1000" style="display:none" preserveAspectRatio="none"/>
         <g id="calloutG" class="callouts"></g>
         <g id="shapeG"></g>
         <g id="iconG"></g>
@@ -217,6 +218,12 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       </g></g>
     </svg>
     <div id="overlay">
+      <div id="alignBar" style="display:none;position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(22,34,46,.97);border:1px solid var(--warn);border-radius:10px;padding:6px;gap:4px;align-items:center;pointer-events:auto;flex-wrap:wrap;justify-content:center;width:max-content;max-width:calc(100% - 80px)">
+        <span style="font-size:12px;padding:0 6px;font-weight:700">對齊新地圖：拖曳移動，按鈕縮放／旋轉</span>
+        <button class="tool" data-al="s0.9">－－</button><button class="tool" data-al="s0.99">－</button><button class="tool" data-al="s1.01">＋</button><button class="tool" data-al="s1.1">＋＋</button>
+        <button class="tool" data-al="rot">↻90°</button><button class="tool" data-al="peek">看舊圖</button>
+        <button class="tool" data-al="cancel">取消</button><button class="tool primary" data-al="done">完成</button>
+      </div>
       <div id="hint"><span id="hintText"></span><button id="hintReset" style="display:none">還原此地圖</button><button id="hintCancel">取消</button></div>
       <div id="zoomCtl">
         <button class="ibtn" id="zIn" title="放大">＋</button>
@@ -287,6 +294,13 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
           <button class="tool" id="ghForget">移除此裝置的權杖</button>
         </div>
         <div id="syncMsg"></div>
+      </div>
+      <div class="sec">
+        <h3>🗺 自訂小地圖</h3>
+        <p>如果遊戲改了地圖，但網站的小地圖還沒更新，可以上傳新版小地圖的圖片（例如遊戲內按 M 的截圖），再把它對齊到舊地圖上。對齊後，技能範圍的比例仍然正確。圖片會存在這台裝置，並同步到你的私人儲存庫。</p>
+        <div class="btns"><button class="tool primary" id="btnUploadMap">上傳目前地圖的新圖片</button><button class="tool" id="btnAlignMap">重新對齊</button><button class="tool" id="btnRemoveMap">移除自訂圖片</button></div>
+        <input type="file" id="mapFile" accept="image/*" hidden>
+        <div id="mapImgMsg" style="font-size:12px;color:var(--dim);margin-top:6px"></div>
       </div>
       <div class="sec">
         <h3>🧭 地圖方向</h3>
@@ -484,10 +498,10 @@ function viewRot(){
 }
 
 /* ---------------- 資料庫 ---------------- */
-function emptyDb(){ return {version:1, strats:{}, calib:{}, mapRot:{}, calloutPos:{}}; }
+function emptyDb(){ return {version:1, strats:{}, calib:{}, mapRot:{}, calloutPos:{}, mapImg:{}}; }
 function loadDb(){
   const d = lsGet(LS_DB,null) || emptyDb();
-  d.strats ||= {}; d.calib ||= {}; d.mapRot ||= {}; d.calloutPos ||= {};
+  d.strats ||= {}; d.calib ||= {}; d.mapRot ||= {}; d.calloutPos ||= {}; d.mapImg ||= {};
   S.db = d;
 }
 function liveStrats(){ return Object.values(S.db.strats).filter(s=>!s.deleted).sort((a,b)=>b.updatedAt-a.updatedAt); }
@@ -551,7 +565,7 @@ function mergeMaps(a={}, b={}){
 }
 function mergeDb(local, remote){
   if(!remote) return local;
-  return {version:1, strats:mergeMaps(local.strats,remote.strats), calib:mergeMaps(local.calib,remote.calib), mapRot:mergeMaps(local.mapRot,remote.mapRot), calloutPos:mergeMaps(local.calloutPos,remote.calloutPos)};
+  return {version:1, strats:mergeMaps(local.strats,remote.strats), calib:mergeMaps(local.calib,remote.calib), mapRot:mergeMaps(local.mapRot,remote.mapRot), calloutPos:mergeMaps(local.calloutPos,remote.calloutPos), mapImg:mergeMaps(local.mapImg,remote.mapImg)};
 }
 function stable(o){ if(Array.isArray(o)) return '['+o.map(stable).join(',')+']'; if(o&&typeof o==='object') return '{'+Object.keys(o).sort().map(k=>JSON.stringify(k)+':'+stable(o[k])).join(',')+'}'; return JSON.stringify(o); }
 async function sync(manual){
@@ -635,7 +649,7 @@ function renderAll(){
   const tb=$('teamSeg').querySelectorAll('button'); const me=s.side==='def'?['防守','守']:['進攻','攻'], en=s.side==='def'?['進攻','攻']:['防守','守'];
   tb[0].innerHTML=`<span class="long">${me[0]}</span><span class="short">${me[1]}</span>(我)`; tb[0].title=me[0]+'方（我方）';
   tb[1].innerHTML=`<span class="long">${en[0]}</span><span class="short">${en[1]}</span>(敵)`; tb[1].title=en[0]+'方（敵方）';
-  $('mapImg').setAttribute('href', m.icon);
+  $('mapImg').setAttribute('href', m.icon); renderMapImage(); ensureCustomMap(m);
   worldG.setAttribute('transform',`rotate(${viewRot()} 500 500)`);
   renderCallouts(); renderObjects(); renderRuler(); updateUndo();
 }
@@ -894,6 +908,7 @@ svg.addEventListener('pointerdown', e=>{
   if(ptrs.size>2) return;
   if(S.shared){ S.drag={kind:'pan', p0:toSvg(e.clientX,e.clientY), v0:{...S.view}, moved:false}; return; }
   const w = toWorld(e.clientX,e.clientY), s=curStrat();
+  if(S.align){ S.drag={kind:'align', w0:w, t0:{...S.align.t}}; return; }
   if(S.editCallouts){
     const cEl=e.target.closest('[data-callout]');
     if(cEl){ const m=curMap(), i=+cEl.dataset.callout, p=calloutXY(m,i); S.drag={kind:'callout', i, off:{x:p.x-w.x,y:p.y-w.y}, moved:false}; return; }
@@ -960,6 +975,7 @@ svg.addEventListener('pointermove', e=>{
     else { o.x2=r1(w.x); o.y2=r1(w.y); }
     reqRender();
   } else if(d.kind==='ruler'){ S.ruler.x2=w.x; S.ruler.y2=w.y; reqRender(); }
+  else if(d.kind==='align'){ S.align.t.x=r1(d.t0.x+w.x-d.w0.x); S.align.t.y=r1(d.t0.y+w.y-d.w0.y); renderMapImage(); }
   else if(d.kind==='ccustom'){
     const m=curMap(), e0=customCallouts(m); e0.custom[d.id]=Object.assign({}, e0.custom[d.id], {x:r1(w.x+d.off.x), y:r1(w.y+d.off.y)}); e0.updatedAt=Date.now(); d.moved=true; renderCallouts();
   }
@@ -977,6 +993,7 @@ function endPtr(e){
   if(ptrs.size>0) return;
   S.drag=null;
   if(d.kind==='callout'){ if(d.moved) persist(); else renameCallout(d.i); return; }
+  if(d.kind==='align') return;
   if(d.kind==='ccustom'){ if(d.moved) persist(); else editCustomCallout(d.id); return; }
   if(d.kind==='pan' && d.addLabel && !d.moved && S.editCallouts){ addCustomCallout(d.w); return; }
   if(d.kind==='pan'){ if(!d.moved && S.selected){ S.selected=null; renderObjects(); } return; }
@@ -1112,6 +1129,89 @@ function openStrat(id){
   S.selected=null; S.history=[]; S.future=[]; S.ruler=null;
   renderAll(); fitView(); renderStratList();
 }
+
+/* ---------------- 自訂小地圖 ---------------- */
+const IDB={ _db:null,
+  open(){ return this._db || (this._db=new Promise((ok,no)=>{ try{ const r=indexedDB.open('valo-board',1); r.onupgradeneeded=()=>r.result.createObjectStore('img'); r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error); }catch(e){ no(e); } })); },
+  async get(k){ try{ const d=await this.open(); return await new Promise(ok=>{ const q=d.transaction('img').objectStore('img').get(k); q.onsuccess=()=>ok(q.result||null); q.onerror=()=>ok(null); }); }catch(e){ return null; } },
+  async set(k,v){ try{ const d=await this.open(); return await new Promise(ok=>{ const t=d.transaction('img','readwrite'); t.objectStore('img').put(v,k); t.oncomplete=()=>ok(true); t.onerror=()=>ok(false); }); }catch(e){ return false; } }
+};
+S.customImg={};
+function mapImgInfo(m){ const i=S.db.mapImg?.[m.id]; return i && !i.removed ? i : null; }
+function imgTransform(t, img){ const h=1000*img.h/img.w; return `translate(${t.x} ${t.y}) rotate(${t.r||0} ${500*t.s} ${h*t.s/2}) scale(${t.s})`; }
+function renderMapImage(){
+  const m=curMap(); if(!m) return; const ci=$('customImg'), mi=$('mapImg');
+  const img = S.align ? S.align.img : S.customImg[m.id], info=mapImgInfo(m);
+  if(img && (S.align || info)){
+    const t = S.align ? S.align.t : info.t;
+    ci.setAttribute('href', img.url); ci.setAttribute('height', 1000*img.h/img.w); ci.setAttribute('transform', imgTransform(t,img));
+    ci.style.display=''; ci.style.opacity = S.align ? (S.align.peek?'.25':'.65') : '1';
+    mi.style.opacity = S.align ? '1' : '0';
+  } else { ci.style.display='none'; mi.style.opacity='1'; }
+}
+async function ensureCustomMap(m){
+  const info=mapImgInfo(m); if(!info){ if(S.customImg[m.id]){ S.customImg[m.id]=null; renderMapImage(); } return; }
+  const have=S.customImg[m.id]; if(have && have.updatedAt>=info.updatedAt) return;
+  let rec=await IDB.get(m.id);
+  if((!rec || (rec.updatedAt||0)<info.updatedAt) && ghReady() && info.path){
+    try{
+      const r=await fetch(`https://api.github.com/repos/${encodeURIComponent(GH.owner)}/${encodeURIComponent(GH.repo)}/contents/${info.path}?ref=${encodeURIComponent(GH.branch)}`, {headers:ghHeaders(), cache:'no-store'});
+      if(r.ok){ const j=await r.json(); if(j.content){ rec={url:'data:image/'+(info.path.endsWith('.webp')?'webp':'jpeg')+';base64,'+j.content.replace(/\s/g,''), w:info.w, h:info.h, updatedAt:info.updatedAt}; await IDB.set(m.id, rec); } }
+    }catch(e){ console.warn(e); }
+  }
+  if(rec){ S.customImg[m.id]=rec; if(curMap()===m) renderMapImage(); }
+}
+function fileToImage(file){ return new Promise((ok,no)=>{ const fr=new FileReader(); fr.onload=()=>{ const im=new Image(); im.onload=()=>ok(im); im.onerror=no; im.src=fr.result; }; fr.onerror=no; fr.readAsDataURL(file); }); }
+$('btnUploadMap').onclick=()=>$('mapFile').click();
+$('mapFile').onchange=async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{
+    const im=await fileToImage(f), k=Math.min(1, 1200/Math.max(im.naturalWidth,im.naturalHeight));
+    const cv=document.createElement('canvas'); cv.width=Math.round(im.naturalWidth*k); cv.height=Math.round(im.naturalHeight*k);
+    cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+    let url=cv.toDataURL('image/webp',0.85); let ext='webp'; if(!url.startsWith('data:image/webp')){ url=cv.toDataURL('image/jpeg',0.88); ext='jpg'; }
+    const img={url, w:cv.width, h:cv.height, ext};
+    showModal('settingsModal',false); startAlign(img, {x:0, y:(1000-1000*img.h/img.w)/2, s:1, r:0}, true);
+  }catch(err){ $('mapImgMsg').textContent='✗ 無法讀取這張圖片'; }
+};
+$('btnAlignMap').onclick=()=>{ const m=curMap(), info=mapImgInfo(m), img=S.customImg[m.id]; if(!info||!img){ $('mapImgMsg').textContent='這張地圖還沒有自訂圖片'; return; } showModal('settingsModal',false); startAlign(img, {...info.t}, false); };
+$('btnRemoveMap').onclick=()=>{ const m=curMap(); if(!mapImgInfo(m)){ $('mapImgMsg').textContent='這張地圖沒有自訂圖片'; return; }
+  askConfirm(`移除 ${m.en} 的自訂小地圖，改回網站內建的地圖？`, ()=>{ S.db.mapImg[m.id]={removed:true, updatedAt:Date.now()}; S.customImg[m.id]=null; persist(); renderMapImage(); }); };
+function startAlign(img, t, isNew){
+  if(S.editCallouts) toggleEditCallouts(false); setTool('select'); S.selected=null; renderObjects();
+  S.align={img, t, isNew, peek:false}; $('alignBar').style.display='flex'; renderMapImage();
+}
+function endAlign(save){
+  const a=S.align; S.align=null; $('alignBar').style.display='none';
+  if(save){
+    const m=curMap(), now=Date.now(), path=`maps/${m.id}.${a.img.ext||'webp'}`;
+    const rec={url:a.img.url, w:a.img.w, h:a.img.h, ext:a.img.ext, updatedAt:now};
+    S.customImg[m.id]=rec; IDB.set(m.id, rec);
+    const prev=mapImgInfo(m);
+    S.db.mapImg[m.id]={path: a.isNew ? path : (prev?.path||path), w:a.img.w, h:a.img.h, t:a.t, updatedAt:now};
+    persist();
+    if(a.isNew) uploadMapImage(path, a.img.url);
+  }
+  renderMapImage();
+}
+async function uploadMapImage(path, dataUrl){
+  if(!ghReady()){ toast('已存在這台裝置（未設定雲端同步）'); return; }
+  try{
+    const url=`https://api.github.com/repos/${encodeURIComponent(GH.owner)}/${encodeURIComponent(GH.repo)}/contents/${path}`;
+    let sha; const g=await fetch(url+'?ref='+encodeURIComponent(GH.branch), {headers:ghHeaders(), cache:'no-store'}); if(g.ok) sha=(await g.json()).sha;
+    const body={message:'上傳自訂小地圖', content:dataUrl.split(',')[1], branch:GH.branch}; if(sha) body.sha=sha;
+    const r=await fetch(url,{method:'PUT', headers:Object.assign({'Content-Type':'application/json'},ghHeaders()), body:JSON.stringify(body)});
+    toast(r.ok?'☁ 新地圖已同步到雲端':'⚠ 新地圖上傳失敗（已存在這台裝置）');
+  }catch(e){ toast('⚠ 新地圖上傳失敗（已存在這台裝置）'); }
+}
+$('alignBar').addEventListener('click', e=>{
+  const b=e.target.closest('[data-al]'); if(!b||!S.align) return; const a=S.align, t=a.t, v=b.dataset.al;
+  if(v[0]==='s'){ const k=parseFloat(v.slice(1)), h=1000*a.img.h/a.img.w, cx=t.x+500*t.s, cy=t.y+h*t.s/2; t.s=Math.max(.2,Math.min(5,t.s*k)); t.x=r1(cx-500*t.s); t.y=r1(cy-h*t.s/2); renderMapImage(); }
+  else if(v==='rot'){ t.r=((t.r||0)+90)%360; renderMapImage(); }
+  else if(v==='peek'){ a.peek=!a.peek; b.classList.toggle('on',a.peek); renderMapImage(); }
+  else if(v==='cancel') endAlign(false);
+  else if(v==='done') endAlign(true);
+});
 
 /* ---------------- 分享連結（唯讀） ---------------- */
 const b64u = bytes => { let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
