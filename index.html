@@ -90,25 +90,32 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .agent.on{border-color:var(--red);background:#2a1b22}
 .agent.on span{color:var(--text)}
 @media (min-width:900px) and (min-aspect-ratio:5/4){
-  #app{display:grid;grid-template-columns:clamp(270px,24vw,340px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  #app{display:grid;grid-template-columns:clamp(310px,26vw,390px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
   #topbar{grid-column:1/-1}
   #stage{grid-column:2;grid-row:2}
-  #dock{grid-column:1;grid-row:2;border-top:0;border-right:1px solid var(--line);overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:10px 10px calc(10px + var(--safe-b))}
+  #dock{grid-column:1;grid-row:2;border-top:0;border-right:1px solid var(--line);overflow:hidden;display:flex;flex-direction:column;gap:8px;padding:10px 10px calc(10px + var(--safe-b));min-height:0}
+  #dock>*{flex-shrink:0}
   #toolRow{order:1;flex-wrap:wrap;overflow:visible}
   #toolRow .sep,#toolRow .spacer,#btnDock,.scrollBtn{display:none!important}
-  #abilityRow{order:2;flex-direction:column;align-items:stretch;overflow:visible;min-height:0;gap:4px}
-  #abilityRow .empty{padding:8px 4px;line-height:1.5}
-  .abil{width:100%;height:46px}
-  .abil .n{max-width:none}
+  #teamSeg{width:100%}
+  #teamSeg button{flex:1}
   body.dockmin .agentsWrap,body.dockmin #abilityRow{display:flex}
-  .agentsWrap{order:3;flex-direction:column;align-items:stretch;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+  /* 特務：中間可捲動區 */
+  .agentsWrap{order:2;flex:1 1 auto!important;min-height:120px;overflow-y:auto;flex-direction:column;align-items:stretch;gap:6px;border-top:1px solid var(--line);padding-top:10px}
   #roleSeg{grid-template-columns:repeat(5,1fr)}
   #roleSeg button[data-role=all]{grid-column:auto}
   #roleSeg button{height:28px;font-size:12px;padding:0 2px}
-  #agentRow{display:grid;grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:4px;overflow:visible}
+  #agentRow{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:4px;overflow:visible}
   .agent{width:auto}
   .agent span{max-width:100%}
   .rlabel{writing-mode:horizontal-tb;grid-column:1/-1;height:auto;border-left:0;margin:4px 0 0;padding:0;letter-spacing:.1em;font-size:11px}
+  /* 技能：固定在下方，田字排列 */
+  #abilityRow{order:3;display:grid;grid-template-columns:1fr 1fr;gap:6px;overflow:visible;min-height:0;border-top:1px solid var(--line);padding-top:10px}
+  #abilityRow .empty{grid-column:1/-1;padding:6px 4px;line-height:1.5}
+  #abilityRow .agent-place{grid-column:1/-1;height:44px;flex-direction:row}
+  #abilityRow .abil:not(.agent-place){height:auto;min-height:74px;flex-direction:column;justify-content:center;padding:8px 4px 6px;gap:4px}
+  #abilityRow .abil:not(.agent-place) img{width:32px;height:32px}
+  #abilityRow .abil:not(.agent-place) .n{text-align:center;max-width:none;font-size:12px}
 }
 @media (max-width:900px){ .brand{display:none} #stratName{min-width:110px} #btnShare,#btnEditCallouts{font-size:13px} }
 @media (max-height:720px){ .tool{height:34px} .abil{height:42px} .abil img{width:24px;height:24px} #abilityRow{min-height:46px} .agent img{width:32px;height:32px} .agent{width:44px} .rlabel{height:46px} }
@@ -116,6 +123,7 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 #abilityRow .empty{font-size:13px;color:var(--dim);padding:0 6px}
 .abil{height:50px;min-width:50px;border-radius:8px;background:var(--panel2);display:inline-flex;align-items:center;gap:6px;padding:0 10px 0 6px;flex-shrink:0;border:2px solid transparent;position:relative}
 .abil.on{border-color:var(--red);background:#2a1b22}
+.abil[style*="--ac"]{box-shadow:inset 0 -3px 0 var(--ac)}
 .abil img{width:30px;height:30px;object-fit:contain;pointer-events:none}
 .abil .k{font-size:10px;font-weight:900;color:var(--dim);position:absolute;left:4px;top:2px}
 .abil .n{font-size:12px;font-weight:700;line-height:1.15;text-align:left;max-width:92px}
@@ -296,6 +304,12 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
   </div>
 </div>
 
+<div class="modal" id="promptModal">
+  <div class="card" style="width:min(400px,100%)">
+    <div class="cfm"><p id="pmTitle" style="font-weight:700"></p><input id="pmInput" maxlength="30" style="height:40px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:0 10px;font-size:15px"><p id="pmDefault" style="font-size:12px;color:var(--dim)"></p>
+    <div class="btns" style="justify-content:flex-end"><button class="tool" id="pmReset">還原預設</button><button class="tool" id="pmCancel">取消</button><button class="tool primary" id="pmOk">儲存</button></div></div>
+  </div>
+</div>
 <div class="modal" id="confirmModal">
   <div class="card" style="width:min(380px,100%)">
     <div class="cfm"><p id="cfmText"></p><div class="btns" id="cfmBtns" style="justify-content:flex-end"></div></div>
@@ -365,7 +379,7 @@ const SLOT_ORDER = ['Grenade','Ability1','Ability2','Ultimate'];
 const SLOT_KEY = {Grenade:'C',Ability1:'Q',Ability2:'E',Ultimate:'X'};
 
 const API = 'https://valorant-api.com/v1';
-const LS_DB='vp_db_v1', LS_GH='vp_github_v1', LS_UI='vp_ui_v1', LS_CACHE='vp_gamecache_v3';
+const LS_DB='vp_db_v1', LS_GH='vp_github_v1', LS_UI='vp_ui_v1', LS_CACHE='vp_gamecache_v4';
 const $ = id => document.getElementById(id);
 const svg = $('board'), viewG=$('viewG'), worldG=$('worldG');
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -407,7 +421,7 @@ async function loadGameData(){
   const agents = aEn.map(a=>{
     const tw = twAg[a.uuid]||a;
     const twAb = Object.fromEntries((tw.abilities||[]).map(x=>[x.slot,x]));
-    return { id:a.uuid, en:a.displayName, tw:tw.displayName, icon:a.displayIcon, role:a.role?.displayName||'', roleTw:tw.role?.displayName||a.role?.displayName||'',
+    return { id:a.uuid, en:a.displayName, tw:tw.displayName, icon:a.displayIcon, role:a.role?.displayName||'', roleTw:tw.role?.displayName||a.role?.displayName||'', grad:a.backgroundGradientColors||null,
       abilities:SLOT_ORDER.map(slot=>{ const x=(a.abilities||[]).find(b=>b.slot===slot); if(!x) return null;
         return {slot, key:SLOT_KEY[slot], en:x.displayName, tw:(twAb[slot]||x).displayName, icon:x.displayIcon}; }).filter(Boolean) };
   }).sort((a,b)=>a.en.localeCompare(b.en));
@@ -588,6 +602,7 @@ function renderAll(){
   $('stratName').value = s.name;
   $('mapSel').value = m.id; $('mapSel').disabled = !!S.shared;
   setSeg('sideSeg', s.side); setSeg('langSeg', S.ui.lang); setSeg('teamSeg', S.ui.team);
+  const tb=$('teamSeg').querySelectorAll('button'); tb[0].textContent = s.side==='def'?'防守方（我方）':'進攻方（我方）'; tb[1].textContent = s.side==='def'?'進攻方（敵方）':'防守方（敵方）';
   $('mapImg').setAttribute('href', m.icon);
   worldG.setAttribute('transform',`rotate(${viewRot()} 500 500)`);
   renderCallouts(); renderObjects(); renderRuler(); updateUndo();
@@ -624,7 +639,23 @@ function ensureAlpha(m){
       if(curMap()===m){ renderCallouts(); if(!S.userMoved) fitView(); }
     }catch(e){ console.warn('無法分析地圖圖片', e); }
   };
-  img.src=m.icon;
+  img.src=m.icon+(m.icon.includes('?')?'&':'?')+'cors=1';
+}
+function calloutLabel(m,i){
+  const c=m.callouts[i], lang=S.ui.lang==='en'?'en':'zh', custom=S.db.calloutPos[m.id]?.names?.[i]?.[lang];
+  if(custom) return custom;
+  return lang==='en' ? `${c.sup} ${c.reg}` : `${c.twSup||c.sup} ${c.twReg||c.reg}`;
+}
+function renameCallout(i){
+  const m=curMap(), lang=S.ui.lang==='en'?'en':'zh', c=m.callouts[i];
+  const def = lang==='en' ? `${c.sup} ${c.reg}` : `${c.twSup||c.sup} ${c.twReg||c.reg}`;
+  askText(`修改地名（${lang==='en'?'英文':'中文'}）`, calloutLabel(m,i), def, val=>{
+    const e0=S.db.calloutPos[m.id] || {pos:{}}; const names=Object.assign({}, e0.names);
+    const cur=Object.assign({}, names[i]); val=(val||'').trim();
+    if(!val || val===def) delete cur[lang]; else cur[lang]=val.slice(0,30);
+    if(Object.keys(cur).length) names[i]=cur; else delete names[i];
+    e0.names=names; e0.updatedAt=Date.now(); S.db.calloutPos[m.id]=e0; persist(); renderCallouts();
+  });
 }
 function renderCallouts(){
   const m=curMap(), g=$('calloutG'), R=viewRot();
@@ -633,15 +664,28 @@ function renderCallouts(){
   if(S.ui.lang==='off' && !S.editCallouts){ g.innerHTML=''; return; }
   g.innerHTML = m.callouts.map((c,i)=>{
     const p=calloutXY(m,i);
-    const t = S.ui.lang==='en' ? `${c.sup} ${c.reg}` : `${c.twSup||c.sup} ${c.twReg||c.reg}`;
+    const t = calloutLabel(m,i);
     return `<text data-callout="${i}" transform="translate(${r1(p.x)} ${r1(p.y)}) rotate(${-R})">${esc(t.trim())}</text>`;
   }).join('');
 }
 function abilDef(en){ const base=ABIL[en]; if(!base) return null; const c=S.db.calib[en]; return (c && c.v && Object.keys(c.v).length) ?Object.assign({},base,c.v,{calibrated:true}) : Object.assign({},base); }
+/* 每位特務的代表色：取官方主題漸層色中最鮮豔的一個，調整亮度 */
+function hexToHsl(h){ h=h.replace('#','').slice(0,6); const r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;
+  const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2; let hh=0, ss=0;
+  if(mx!==mn){ const d=mx-mn; ss=l>.5?d/(2-mx-mn):d/(mx+mn); hh = mx===r?((g-b)/d+(g<b?6:0)) : mx===g?((b-r)/d+2):((r-g)/d+4); hh*=60; }
+  return [hh,ss,l]; }
+function agentColor(a){
+  if(!a) return '#bbbbbb'; if(a._col) return a._col;
+  let best=null;
+  (a.grad||[]).forEach(h=>{ try{ const c=hexToHsl(h); if(!best||c[1]>best[1]) best=c; }catch(e){} });
+  if(!best||best[1]<.15){ const i=S.agents.indexOf(a); best=[(i*137.508)%360,.7,.6]; }
+  return a._col=`hsl(${Math.round(best[0])} ${Math.round(Math.max(.55,best[1])*100)}% ${Math.round(Math.min(.68,Math.max(.55,best[2]))*100)}%)`;
+}
 function teamColor(t){ return t==='enemy' ? '#ff4655' : '#36d6c3'; }
 function findAbility(o){ const a=S.agentById[o.agent]; return a && a.abilities.find(x=>x.slot===o.slot); }
-function shapeSVG(o, def, k, col){
-  const fill = `fill="${col}" fill-opacity=".22" stroke="${col}" stroke-width="${1.6/S.view.s}"`;
+function shapeSVG(o, def, k, col, acol){
+  const dash = o.team==='enemy' ? `stroke-dasharray="${7/S.view.s} ${4/S.view.s}"` : '';
+  const fill = `fill="${acol}" fill-opacity=".3" stroke="${col}" stroke-width="${2.2/S.view.s}" ${dash}`;
   if(def.shape==='circle') return `<circle r="${def.r*k}" ${fill}/>`;
   const rot = `transform="rotate(${o.angle||0})"`;
   if(def.shape==='cone'){
@@ -653,7 +697,7 @@ function shapeSVG(o, def, k, col){
     return `<rect ${rot} x="${x0}" y="${-w/2}" width="${L}" height="${w}" ${fill}/>`;
   }
   if(def.shape==='line'){
-    const L=def.len*k; return `<line ${rot} x1="0" y1="0" x2="${L}" y2="0" stroke="${col}" stroke-width="${3/S.view.s}" stroke-dasharray="${6/S.view.s} ${4/S.view.s}"/>`;
+    const L=def.len*k; return `<g ${rot}><line x1="0" y1="0" x2="${L}" y2="0" stroke="${col}" stroke-width="${6/S.view.s}"/><line x1="0" y1="0" x2="${L}" y2="0" stroke="${acol}" stroke-width="${3/S.view.s}" ${o.team==='enemy'?`stroke-dasharray="${6/S.view.s} ${4/S.view.s}"`:''}/></g>`;
   }
   return '';
 }
@@ -672,13 +716,15 @@ function renderObjects(){
     if(o.type==='agent'){
       const a=S.agentById[o.agent];
       ic += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})"><g transform="rotate(${-R})">
-        <circle r="17" fill="#0f1923" stroke="${col}" stroke-width="3"/>
-        ${a?`<image href="${esc(a.icon)}" x="-15" y="-15" width="30" height="30" clip-path="url(#cc)"/>`:''}${selRing}</g></g>`;
+        <circle r="18" fill="#0f1923" stroke="${col}" stroke-width="3.5"/>
+        <circle r="15.3" fill="none" stroke="${agentColor(a)}" stroke-width="2"/>
+        ${a?`<image href="${esc(a.icon)}" x="-14" y="-14" width="28" height="28" clip-path="url(#cc)"/>`:''}${selRing}</g></g>`;
     } else if(o.type==='ability'){
       const ab=findAbility(o), def=ab&&abilDef(ab.en);
-      if(def) sh += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})">${shapeSVG(o,def,k,col)}</g>`;
+      const acol=agentColor(S.agentById[o.agent]);
+      if(def) sh += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})">${shapeSVG(o,def,k,col,acol)}</g>`;
       ic += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})"><g transform="rotate(${-R})">
-        <circle r="12" fill="${col}" fill-opacity=".9" stroke="#0f1923" stroke-width="2"/>
+        <circle r="12.5" fill="${acol}" stroke="${col}" stroke-width="3" ${o.team==='enemy'?'stroke-dasharray="4 2.5"':''}/>
         ${ab?`<image href="${esc(ab.icon)}" x="-8.5" y="-8.5" width="17" height="17" style="filter:brightness(0)"/>`:''}${selRing}</g></g>`;
       if(sel){ const h=handlePos(o,def,k); if(h) ic += `<g data-handle="${o.id}" style="cursor:alias"><line x1="${o.x}" y1="${o.y}" x2="${h.x}" y2="${h.y}" stroke="#fff" stroke-opacity=".5" stroke-width="${1.5/vs}"/><circle cx="${h.x}" cy="${h.y}" r="${hs*1.6}" fill="transparent"/><circle cx="${h.x}" cy="${h.y}" r="${hs*0.8}" fill="#fff" stroke="#0f1923" stroke-width="${2/vs}"/></g>`; }
     } else if(o.type==='spike'){
@@ -843,7 +889,7 @@ function endPtr(e){
   if(d.kind==='pinch'){ if(ptrs.size===0) S.drag=null; else S.drag={kind:'idle'}; return; }
   if(ptrs.size>0) return;
   S.drag=null;
-  if(d.kind==='callout'){ if(d.moved) persist(); return; }
+  if(d.kind==='callout'){ if(d.moved) persist(); else renameCallout(d.i); return; }
   if(d.kind==='pan'){ if(!d.moved && S.selected){ S.selected=null; renderObjects(); } return; }
   if(d.kind==='draw'){
     const o=d.o, s=curStrat();
@@ -890,11 +936,12 @@ function renderAbilities(){
   const a=S.agentById[S.selAgent], row=$('abilityRow');
   if(!a){ row.innerHTML='<span class="empty">先選一位特務 → 再選技能 → 點地圖放置</span>'; return; }
   const p=S.pending;
-  let h = `<button class="abil agent-place${p&&p.type==='agent'?' on':''}" data-place-agent="${a.id}"><img src="${esc(a.icon)}" style="border-radius:50%"><span class="n">${esc(a.tw)}<small>放置特務</small></span></button>`;
+  const ac=agentColor(a);
+  let h = `<button class="abil agent-place${p&&p.type==='agent'?' on':''}" data-place-agent="${a.id}" style="--ac:${ac}"><img src="${esc(a.icon)}" style="border-radius:50%"><span class="n">${esc(a.tw)}<small>放置特務</small></span></button>`;
   for(const ab of a.abilities){
     const def=abilDef(ab.en);
     const on = p&&p.type==='ability'&&p.agent===a.id&&p.slot===ab.slot;
-    h += `<button class="abil${on?' on':''}" data-abil="${ab.slot}"><span class="k">${ab.key}</span><img src="${esc(ab.icon||'')}"><span class="n">${esc(ab.tw)}<small>${def?(def.shape==='circle'?'圓形':def.shape==='cone'?'扇形':def.shape==='rect'?'長方形':'直線'):'圖示'}</small></span>${def?`<span class="dot${def.calibrated?' ok':''}" title="${def.calibrated?'已校準':'待校準'}"></span>`:''}</button>`;
+    h += `<button class="abil${on?' on':''}" data-abil="${ab.slot}" style="--ac:${ac}"><span class="k">${ab.key}</span><img src="${esc(ab.icon||'')}"><span class="n">${esc(ab.tw)}<small>${def?(def.shape==='circle'?'圓形':def.shape==='cone'?'扇形':def.shape==='rect'?'長方形':'直線'):'圖示'}</small></span>${def?`<span class="dot${def.calibrated?' ok':''}" title="${def.calibrated?'已校準':'待校準'}"></span>`:''}</button>`;
   }
   row.innerHTML=h;
 }
@@ -918,7 +965,7 @@ $('hintCancel').onclick=()=>{ if(S.editCallouts){ toggleEditCallouts(false); ret
 function toggleEditCallouts(on){
   S.editCallouts=on; setTool('select'); S.selected=null;
   $('btnEditCallouts').classList.toggle('on',on);
-  if(on){ showHint('拖曳地名調整位置（會記住並同步）'); $('hintCancel').textContent='完成'; $('hintReset').style.display=''; }
+  if(on){ showHint('拖曳地名移動位置．點一下地名可改名'); $('hintCancel').textContent='完成'; $('hintReset').style.display=''; }
   else { showHint(null); $('hintCancel').textContent='取消'; $('hintReset').style.display='none'; }
   renderCallouts(); renderObjects();
 }
@@ -1093,6 +1140,15 @@ function askChoice(t, buttons){
     el.onclick=()=>{ showModal('confirmModal',false); b.fn&&b.fn(); }; box.appendChild(el); });
   showModal('confirmModal',true);
 }
+let pmCb=null;
+function askText(title, value, def, cb){
+  $('pmTitle').textContent=title; $('pmInput').value=value; $('pmDefault').textContent='預設：'+def; pmCb=cb; showModal('promptModal',true);
+  setTimeout(()=>{ $('pmInput').focus(); $('pmInput').select(); },50);
+}
+$('pmOk').onclick=()=>{ showModal('promptModal',false); pmCb&&pmCb($('pmInput').value); pmCb=null; };
+$('pmReset').onclick=()=>{ showModal('promptModal',false); pmCb&&pmCb(''); pmCb=null; };
+$('pmCancel').onclick=()=>{ showModal('promptModal',false); pmCb=null; };
+$('pmInput').addEventListener('keydown',e=>{ if(e.key==='Enter') $('pmOk').click(); if(e.key==='Escape') $('pmCancel').click(); });
 function askConfirm(t,cb){ askChoice(t,[{label:'確定',primary:true,fn:cb}]); }
 
 /* ---------------- 啟動 ---------------- */
