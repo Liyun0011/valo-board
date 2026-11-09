@@ -202,6 +202,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
         <clipPath id="cc" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>
         <marker id="ahA" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#36d6c3"/></marker>
         <marker id="ahE" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ff4655"/></marker>
+        <radialGradient id="sm_clove" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="#fbe7ff" stop-opacity=".9"/><stop offset=".6" stop-color="#c9b4ee" stop-opacity=".9"/><stop offset="1" stop-color="#8ea6f2" stop-opacity=".9"/></radialGradient><radialGradient id="sm_brim" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="#f6efe3" stop-opacity=".9"/><stop offset=".6" stop-color="#e8d7bd" stop-opacity=".9"/><stop offset="1" stop-color="#d9853b" stop-opacity=".9"/></radialGradient><radialGradient id="sm_omen" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="#3a2160" stop-opacity=".82"/><stop offset=".6" stop-color="#24133d" stop-opacity=".82"/><stop offset="1" stop-color="#3b2860" stop-opacity=".82"/></radialGradient><radialGradient id="sm_astra" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="#f0a050" stop-opacity=".9"/><stop offset=".6" stop-color="#8a3fc4" stop-opacity=".9"/><stop offset="1" stop-color="#5b1f8f" stop-opacity=".9"/></radialGradient><radialGradient id="sm_harbor" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="#e9e07a" stop-opacity=".9"/><stop offset=".6" stop-color="#7fa592" stop-opacity=".9"/><stop offset="1" stop-color="#4f7f9a" stop-opacity=".9"/></radialGradient><radialGradient id="sm_viper" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="#c4f27a" stop-opacity=".9"/><stop offset=".6" stop-color="#3f9d55" stop-opacity=".9"/><stop offset="1" stop-color="#1e5f3e" stop-opacity=".9"/></radialGradient><radialGradient id="sm_jett" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="#ffffff" stop-opacity=".9"/><stop offset=".6" stop-color="#d4e9f7" stop-opacity=".9"/><stop offset="1" stop-color="#8fb6d6" stop-opacity=".9"/></radialGradient><radialGradient id="sm_cypher" cx="45%" cy="40%" r="62%"><stop offset="0" stop-color="#ffffff" stop-opacity=".9"/><stop offset=".6" stop-color="#d8dde3" stop-opacity=".9"/><stop offset="1" stop-color="#9aa6b2" stop-opacity=".9"/></radialGradient>
         <marker id="ahW" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#ece8e1"/></marker>
       </defs>
       <g id="viewG"><g id="worldG">
@@ -379,6 +380,10 @@ const ABIL = {
   // Tejo
   'Guided Salvo':{shape:'circle',r:4.5}, 'Armageddon':{shape:'rect',len:40,w:8}
 };
+/* 煙霧外觀（參考遊戲內煙霧球的配色）：技能英文名 → 樣式 */
+const SMOKE_LOOK = {'Ruse':'clove','Sky Smoke':'brim','Dark Cover':'omen','Nebula':'astra','Cove':'harbor','Poison Cloud':'viper','Cloudburst':'jett','Cyber Cage':'cypher'};
+const SMOKE_HL = {clove:'#f7a8e0',brim:'#ffffff',omen:'#6b4fa0',astra:'#ffcc80',harbor:'#fff3a0',viper:'#e8ff9a',jett:'#ffffff',cypher:'#ffffff'};
+const SMOKE_RIM = {clove:'#8ea6f2',brim:'#d9853b',omen:'#4a3474',astra:'#a64dd6',harbor:'#4f7f9a',viper:'#1e5f3e',jett:'#8fb6d6',cypher:'#9aa6b2'};
 const SHAPE_PARAMS = {circle:[['r','半徑']], cone:[['len','長度'],['deg','角度°']], rect:[['len','長度'],['w','寬度']], line:[['len','長度']]};
 const SLOT_ORDER = ['Grenade','Ability1','Ability2','Ultimate'];
 const SLOT_KEY = {Grenade:'C',Ability1:'Q',Ability2:'E',Ultimate:'X'};
@@ -675,7 +680,7 @@ function renderCallouts(){
     return `<text data-callout="${i}" transform="translate(${r1(p.x)} ${r1(p.y)}) rotate(${-R})">${esc(t.trim())}</text>`;
   }).join('');
 }
-function abilDef(en){ const base=ABIL[en]; if(!base) return null; const c=S.db.calib[en]; return (c && c.v && Object.keys(c.v).length) ?Object.assign({},base,c.v,{calibrated:true}) : Object.assign({},base); }
+function abilDef(en){ const base=ABIL[en]; if(!base) return null; const c=S.db.calib[en]; return (c && c.v && Object.keys(c.v).length) ?Object.assign({},base,c.v,{calibrated:true,_en:en}) : Object.assign({},base,{_en:en}); }
 /* 每位特務的代表色：取官方主題漸層色中最鮮豔的一個，調整亮度 */
 function hexToHsl(h){ h=h.replace('#','').slice(0,6); const r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;
   const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2; let hh=0, ss=0;
@@ -696,7 +701,18 @@ function findAbility(o){ const a=S.agentById[o.agent]; return a && a.abilities.f
 function shapeSVG(o, def, k, col, acol){
   const dash = o.team==='enemy' ? `stroke-dasharray="${7/S.view.s} ${4/S.view.s}"` : '';
   const fill = `fill="${acol}" fill-opacity=".3" stroke="${col}" stroke-width="${2.2/S.view.s}" ${dash}`;
-  if(def.shape==='circle') return `<circle r="${def.r*k}" ${fill}/>`;
+  if(def.shape==='circle'){
+    const look = SMOKE_LOOK[def._en];
+    if(look){
+      const R=def.r*k, vs=S.view.s;
+      return `<circle r="${R}" fill="url(#sm_${look})" stroke="${SMOKE_RIM[look]}" stroke-width="${Math.min(R*.12,3/vs)}"/>
+        <g transform="scale(${R})" fill="none" stroke="${SMOKE_HL[look]}" stroke-opacity=".45" stroke-linecap="round">
+          <path d="M-.62 .12A.62 .62 0 0 1 .28 -.52" stroke-width=".09"/><path d="M.55 .18A.52 .52 0 0 1 -.18 .56" stroke-width=".07"/><path d="M-.25 -.1A.28 .28 0 0 1 .22 .05" stroke-width=".06"/>
+        </g>
+        <circle r="${R+2.5/vs}" fill="none" stroke="${col}" stroke-width="${2/vs}" ${dash}/>`;
+    }
+    return `<circle r="${def.r*k}" ${fill}/>`;
+  }
   const rot = `transform="rotate(${o.angle||0})"`;
   if(def.shape==='cone'){
     const L=def.len*k, a=(def.deg/2)*Math.PI/180, x=L*Math.cos(a), y=L*Math.sin(a);
