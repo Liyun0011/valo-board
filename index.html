@@ -172,7 +172,16 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .btns{display:flex;gap:6px;flex-wrap:wrap}
 #syncMsg{font-size:12px;margin-top:6px;color:var(--dim);white-space:pre-wrap}
-.cal{display:flex;align-items:center;gap:8px;padding:8px;background:var(--panel2);border-radius:8px;margin-bottom:6px;flex-wrap:wrap}
+.cal{display:grid;grid-template-columns:28px minmax(0,1fr) 128px;align-items:center;gap:6px 10px;padding:8px 10px;background:var(--panel2);border-radius:8px;margin-bottom:6px}
+.cal select{height:32px;font-size:13px;width:100%;background:var(--bg);border:1px solid var(--line);border-radius:5px}
+.cal .params{grid-column:2/-1;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.cal .params:empty{display:none}
+.personal{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:rgba(0,0,0,.12)}
+.personal summary{cursor:pointer;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;list-style:none}
+.personal summary::-webkit-details-marker{display:none}
+.personal summary::before{content:'▸';color:var(--dim)}
+.personal[open] summary::before{content:'▾'}
+.personal summary small{font-weight:400;color:var(--dim);font-size:12px;margin-left:auto}
 .cal img{width:26px;height:26px}
 .cal .nm{flex:1;min-width:120px;font-size:13px;font-weight:700}
 .cal .nm small{display:block;font-weight:400;color:var(--dim);font-size:11px}
@@ -281,19 +290,10 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
     <div class="ph"><h2>設定</h2><button class="ibtn" data-close>✕</button></div>
     <div class="body">
       <div class="sec">
-        <h3>☁️ 雲端同步（GitHub 私人儲存庫）</h3>
-        <p>戰術會一直自動存在這台裝置。填好下面資料後，也會自動同步到你的私人 GitHub 儲存庫，iPad 和電腦就能讀到同一份。存取權杖只存在這台裝置的瀏覽器裡，不會寫進網站程式碼。</p>
-        <div class="grid2">
-          <div class="field"><label>GitHub 帳號</label><input id="ghOwner" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="例如 yourname"></div>
-          <div class="field"><label>資料儲存庫名稱</label><input id="ghRepo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="valo-strats-data"></div>
-        </div>
-        <div class="field"><label>存取權杖（Fine-grained token）</label><input id="ghToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
-        <div class="btns">
-          <button class="tool primary" id="ghSave">儲存並連線</button>
-          <button class="tool" id="ghSyncNow">立即同步</button>
-          <button class="tool" id="ghForget">移除此裝置的權杖</button>
-        </div>
-        <div id="syncMsg"></div>
+        <h3>📐 技能範圍</h3>
+        <p>單位都是公尺。技能範圍以「公尺」記錄，並依每張地圖的官方座標比例換算，所以不能在地圖上隨意縮放。目前內建數值都是<b>未經驗證的估計值（待校準）</b>。沒有範圍的技能也可以在這裡自己選形狀。可以用「測距」工具對照遊戲內實際距離再修正；修改過的會標記為「自訂」並一起同步。</p>
+        <div class="field"><label>選擇特務</label><select id="calAgent"></select></div>
+        <div id="calList"></div>
       </div>
       <div class="sec">
         <h3>🗺 自訂小地圖</h3>
@@ -308,16 +308,28 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
         <div class="btns"><button class="tool" id="rotFix">目前地圖再轉 90°</button><button class="tool" id="rotReset">恢復自動</button></div>
       </div>
       <div class="sec">
-        <h3>📐 技能尺寸校準</h3>
-        <p>技能範圍以「公尺」記錄，並依每張地圖的官方座標比例換算，所以不能在地圖上隨意縮放。目前內建數值都是<b>未經驗證的估計值（待校準）</b>。沒有範圍的技能也可以在這裡自己選形狀。可以用「測距」工具對照遊戲內實際距離再修正；修改過的會標記為「自訂」並一起同步。</p>
-        <div class="field"><label>選擇特務</label><select id="calAgent"></select></div>
-        <div id="calList"></div>
-      </div>
-      <div class="sec">
         <h3>🔄 遊戲資料</h3>
         <p id="gameVer">遊戲版本一更新，網站會自動重新下載地圖與特務資料。如果地圖看起來還是舊的，可以手動重新下載。</p>
         <div class="btns"><button class="tool" id="btnReloadData">重新下載地圖與特務資料</button></div>
       </div>
+      <details class="sec personal" id="personalSec">
+        <summary><span>🔒 個人設定：雲端同步</span><small id="syncSummary"></small></summary>
+        <div style="margin-top:10px">
+        
+        <p>戰術會一直自動存在這台裝置。填好下面資料後，也會自動同步到你的私人 GitHub 儲存庫，iPad 和電腦就能讀到同一份。存取權杖只存在這台裝置的瀏覽器裡，不會寫進網站程式碼。</p>
+        <div class="grid2">
+          <div class="field"><label>GitHub 帳號</label><input id="ghOwner" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="例如 yourname"></div>
+          <div class="field"><label>資料儲存庫名稱</label><input id="ghRepo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="valo-strats-data"></div>
+        </div>
+        <div class="field"><label>存取權杖（Fine-grained token）</label><input id="ghToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
+        <div class="btns">
+          <button class="tool primary" id="ghSave">儲存並連線</button>
+          <button class="tool" id="ghSyncNow">立即同步</button>
+          <button class="tool" id="ghForget">移除此裝置的權杖</button>
+        </div>
+        <div id="syncMsg"></div>
+      </div>
+      </details>
       <div class="sec">
         <h3>ℹ️ 關於</h3>
         <p>私人非商業用途的戰術白板。地圖、地名、特務與技能圖示來自社群維護的 valorant-api.com；VALORANT 為 Riot Games 的商標，本網站與 Riot Games 無關。</p>
@@ -1291,7 +1303,7 @@ $('importFile').onchange=async e=>{
 /* ---------------- 設定 ---------------- */
 function showModal(id,o){ $(id).classList.toggle('show',o); }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m||e.target.closest('[data-close]')) showModal(m.id,false); }));
-$('btnSettings').onclick=()=>{ const gv=lsGet(LS_CACHE,null)?.ver; if(gv) $('gameVer').textContent='目前地圖資料版本：'+gv+'。遊戲版本一更新，網站會自動重新下載；如果地圖看起來還是舊的，可以手動重新下載。'; $('ghOwner').value=GH.owner; $('ghRepo').value=GH.repo; $('ghToken').value=GH.token?'••••••••':''; renderCalib(); showModal('settingsModal',true);
+$('btnSettings').onclick=()=>{ $('syncSummary').textContent = ghReady()?('已連線 '+GH.owner+'/'+GH.repo):'尚未設定'; if(!ghReady()) $('personalSec').open=true; const gv=lsGet(LS_CACHE,null)?.ver; if(gv) $('gameVer').textContent='目前地圖資料版本：'+gv+'。遊戲版本一更新，網站會自動重新下載；如果地圖看起來還是舊的，可以手動重新下載。'; $('ghOwner').value=GH.owner; $('ghRepo').value=GH.repo; $('ghToken').value=GH.token?'••••••••':''; renderCalib(); showModal('settingsModal',true);
   $('syncMsg').textContent = ghReady()?`目前連線：${GH.owner}/${GH.repo}`:'尚未設定，戰術目前只存在這台裝置。'; };
 $('ghSave').onclick=()=>{
   GH.owner=$('ghOwner').value.trim(); GH.repo=$('ghRepo').value.trim();
@@ -1314,8 +1326,8 @@ function renderCalib(){
     const opts=['none','circle','cone','rect','line','cross'].map(x=>`<option value="${x}" ${x===shape?'selected':''}>${x==='none'?'無範圍（只顯示圖示）':SHAPE_NAME[x]}</option>`).join('');
     const inputs=def?SHAPE_PARAMS[shape].map(([k,l])=>`<label>${l}<input type="number" step="0.05" min="0" data-cal="${esc(ab.en)}" data-k="${k}" value="${def[k]}"></label>`).join(''):'';
     const badge = def ? (custom?'<span class="badge ok">自訂</span>':'<span class="badge">待校準</span>') : '';
-    return `<div class="cal" id="cal-${esc(ab.slot)}"><img src="${esc(ab.icon||'')}"><div class="nm">${ab.key} · ${esc(ab.tw)} ${badge}<small>${esc(ab.en)} · 單位：公尺</small></div>
-      <select data-calshape="${esc(ab.en)}" style="height:32px;background:var(--bg);border:1px solid var(--line);border-radius:5px">${opts}</select>${inputs}${custom?`<button class="tool" data-calreset="${esc(ab.en)}" style="height:32px">還原預設</button>`:''}</div>`;
+    return `<div class="cal" id="cal-${esc(ab.slot)}"><img src="${esc(ab.icon||'')}"><div class="nm">${ab.key} · ${esc(ab.tw)} ${badge}<small>${esc(ab.en)}</small></div>
+      <select data-calshape="${esc(ab.en)}">${opts}</select><div class="params">${inputs}${custom?`<button class="tool" data-calreset="${esc(ab.en)}" style="height:32px">還原預設</button>`:''}</div></div>`;
   }).join('');
 }
 $('calAgent').onchange=e=>{ e.target._touched=true; renderCalib(); };
