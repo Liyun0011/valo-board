@@ -674,13 +674,16 @@ function hexToHsl(h){ h=h.replace('#','').slice(0,6); const r=parseInt(h.slice(0
   const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2; let hh=0, ss=0;
   if(mx!==mn){ const d=mx-mn; ss=l>.5?d/(2-mx-mn):d/(mx+mn); hh = mx===r?((g-b)/d+(g<b?6:0)) : mx===g?((b-r)/d+2):((r-g)/d+4); hh*=60; }
   return [hh,ss,l]; }
-function agentColor(a){
-  if(!a) return '#bbbbbb'; if(a._col) return a._col;
-  let best=null;
-  (a.grad||[]).forEach(h=>{ try{ const c=hexToHsl(h); if(!best||c[1]>best[1]) best=c; }catch(e){} });
-  if(!best||best[1]<.15){ const i=S.agents.indexOf(a); best=[(i*137.508)%360,.7,.6]; }
-  return a._col=`hsl(${Math.round(best[0])} ${Math.round(Math.max(.55,best[1])*100)}% ${Math.round(Math.min(.68,Math.max(.55,best[2]))*100)}%)`;
+/* 同一套戰術裡，每位特務分配一個不重複、固定的顏色（避開敵我用的青色與紅色） */
+const PALETTE=['#ff9f1c','#4ea8ff','#c77dff','#9be15d','#ff70b8','#ffe14d','#ff8a5c','#8c9eff','#d4a373','#f2f2f2'];
+function colorIdx(s, agentId, assign){
+  if(!s) return 0; s.colors ||= {};
+  for(const o of s.objects) if(o.agent && s.colors[o.agent]==null) s.colors[o.agent]=nextColor(s);
+  if(s.colors[agentId]!=null) return s.colors[agentId];
+  const n=nextColor(s); if(assign) s.colors[agentId]=n; return n;
 }
+function nextColor(s){ const used=new Set(Object.values(s.colors)); let i=0; while(used.has(i)) i++; return i; }
+function agentColor(a, assign){ if(!a) return '#bbbbbb'; return PALETTE[colorIdx(curStrat(), a.id, assign)%PALETTE.length]; }
 function teamColor(t){ return t==='enemy' ? '#ff4655' : '#36d6c3'; }
 function findAbility(o){ const a=S.agentById[o.agent]; return a && a.abilities.find(x=>x.slot===o.slot); }
 function shapeSVG(o, def, k, col, acol){
@@ -823,6 +826,7 @@ svg.addEventListener('pointerdown', e=>{
   if(S.pending){
     const p=S.pending, o={id:uid(), type:p.type, x:r1(w.x), y:r1(w.y), team:S.ui.team};
     if(p.type==='agent') o.agent=p.agent;
+    if(p.agent) agentColor(S.agentById[p.agent], true);
     if(p.type==='ability'){ o.agent=p.agent; o.slot=p.slot; o.angle=Math.round(-90-viewRot()); }
     if(p.type==='spike'){ delete o.team; s.objects=s.objects.filter(x=>x.type!=='spike'); }
     const pre=snap(); s.objects.push(o); pushHistory(pre); markDirty();
@@ -1025,7 +1029,7 @@ function openStrat(id){
 const b64u = bytes => { let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
 const unb64u = s => Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c=>c.charCodeAt(0));
 async function packStrat(s){
-  const raw = new TextEncoder().encode(JSON.stringify({v:1,i:s.origin||s.id,n:s.name,m:s.map,s:s.side,o:s.objects}));
+  const raw = new TextEncoder().encode(JSON.stringify({v:1,i:s.origin||s.id,n:s.name,m:s.map,s:s.side,o:s.objects,c:s.colors||{}}));
   if(window.CompressionStream){ try{ const buf=await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer(); return 'z'+b64u(new Uint8Array(buf)); }catch(e){} }
   return 'j'+b64u(raw);
 }
@@ -1033,7 +1037,7 @@ async function unpackStrat(code){
   let bytes=unb64u(code.slice(1));
   if(code[0]==='z') bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
   const d=JSON.parse(new TextDecoder().decode(bytes));
-  return {id:'shared', origin:d.i||null, name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], updatedAt:Date.now()};
+  return {id:'shared', origin:d.i||null, name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], colors:(d.c&&typeof d.c==='object')?d.c:{}, updatedAt:Date.now()};
 }
 $('btnShare').onclick=async()=>{
   const s=curStrat(); if(!s) return;
@@ -1062,7 +1066,7 @@ function saveSharedAsNew(){ const st=S.shared; exitShared(); const c=JSON.parse(
 function replaceWithShared(targetId){
   const st=S.shared, t=S.db.strats[targetId]; exitShared();
   const before=JSON.stringify(t.objects);
-  t.objects=JSON.parse(JSON.stringify(st.objects)); t.name=st.name; t.map=st.map; t.side=st.side; t.updatedAt=Date.now();
+  t.objects=JSON.parse(JSON.stringify(st.objects)); t.colors=Object.assign({},st.colors); t.name=st.name; t.map=st.map; t.side=st.side; t.updatedAt=Date.now();
   persist(); openStrat(t.id); pushHistory(before); toast('已取代原本的戰術（可按 ↶ 復原）');
 }
 $('shareSave').onclick=()=>{
