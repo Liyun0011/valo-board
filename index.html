@@ -44,6 +44,11 @@ select{height:36px;background:var(--panel2);border:0;border-radius:6px;padding:0
 #board{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none;display:block}
 #board.placing{cursor:crosshair}
 .callouts text{fill:#fff;font-weight:700;paint-order:stroke;stroke:#0b131b;stroke-width:3px;stroke-linejoin:round;text-anchor:middle;dominant-baseline:central;pointer-events:none;opacity:.92}
+#shareBanner{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:none;align-items:center;gap:6px;background:rgba(22,34,46,.96);border:1px solid var(--ally);padding:6px 6px 6px 12px;border-radius:999px;pointer-events:auto;max-width:calc(100% - 80px);font-size:13px;font-weight:700}
+#shareBanner span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#shareBanner .tool{height:32px;border-radius:999px}
+body.viewing #shareBanner{display:flex}
+body.viewing #dock{display:none}
 .callouts.edit text{pointer-events:auto;cursor:move;fill:#ffd36b}
 .obj{cursor:grab}
 #overlay{position:absolute;inset:0;pointer-events:none}
@@ -134,6 +139,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
     <input id="stratName" placeholder="戰術名稱" maxlength="60">
     <span id="saveStatus"></span>
     <span class="spacer"></span>
+    <button class="ibtn" id="btnShare" title="分享這套戰術">🔗 分享</button>
     <select id="mapSel" title="地圖"></select>
     <div class="seg side" id="sideSeg"><button data-v="atk">進攻</button><button data-v="def">防守</button></div>
     <div class="seg" id="langSeg"><button data-v="zh">中</button><button data-v="en">EN</button><button data-v="off">隱藏</button></div>
@@ -170,6 +176,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
         <button class="tool" id="selDup">複製</button>
         <button class="tool" id="selDel" style="color:var(--red)">刪除</button>
       </div>
+      <div id="shareBanner"><span id="shareText"></span><button class="tool primary" id="shareSave">存到我的戰術</button><button class="tool" id="shareClose">關閉</button></div>
       <div id="toast"></div>
       <div id="loading"><b>載入地圖與特務資料中…</b><span>資料來源：valorant-api.com</span></div>
     </div>
@@ -247,7 +254,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
 <div class="modal" id="textModal">
   <div class="card">
     <div class="ph"><h2 id="textTitle">備份內容</h2><button class="ibtn" data-close>✕</button></div>
-    <div class="body"><p id="textDesc" style="margin:0;color:var(--dim);font-size:12px"></p><textarea id="textArea" readonly></textarea><div class="btns"><button class="tool primary" id="textCopy">複製</button></div></div>
+    <div class="body"><p id="textDesc" style="margin:0;color:var(--dim);font-size:12px"></p><textarea id="textArea" readonly></textarea><div class="btns"><button class="tool primary" id="textCopy">複製</button><button class="tool" id="textShare" style="display:none">分享到…</button></div></div>
   </div>
 </div>
 
@@ -372,7 +379,7 @@ async function loadGameData(){
 }
 
 /* ---------------- 地圖幾何 ---------------- */
-function curStrat(){ return S.db.strats[S.curId]; }
+function curStrat(){ return S.shared || S.db.strats[S.curId]; }
 function curMap(){ const s=curStrat(); return s && (S.mapById[s.map] || S.maps[0]); }
 function proj(m, wx, wy){ return {x:(wy*m.xm + m.xa)*1000, y:(wx*m.ym + m.ya)*1000}; }
 function ppm(m){ return 1000*100*(Math.abs(m.xm)+Math.abs(m.ym))/2; } // 每公尺 = 多少畫面單位（1 公尺 = 100 遊戲單位）
@@ -409,6 +416,7 @@ function newStrat(mapId, name, side){
 }
 let saveTimer=null;
 function markDirty(){
+  if(S.shared) return;
   const s=curStrat(); if(s) s.updatedAt=Date.now();
   persist();
 }
@@ -519,7 +527,7 @@ function toSvg(cx,cy){ const r=svg.getBoundingClientRect(); return {x:cx-r.left,
 function renderAll(){
   const s=curStrat(), m=curMap(); if(!s||!m) return;
   $('stratName').value = s.name;
-  $('mapSel').value = m.id;
+  $('mapSel').value = m.id; $('mapSel').disabled = !!S.shared;
   setSeg('sideSeg', s.side); setSeg('langSeg', S.ui.lang); setSeg('teamSeg', S.ui.team);
   $('mapImg').setAttribute('href', m.icon);
   worldG.setAttribute('transform',`rotate(${viewRot()} 500 500)`);
@@ -695,6 +703,7 @@ svg.addEventListener('pointerdown', e=>{
     return;
   }
   if(ptrs.size>2) return;
+  if(S.shared){ S.drag={kind:'pan', p0:toSvg(e.clientX,e.clientY), v0:{...S.view}, moved:false}; return; }
   const w = toWorld(e.clientX,e.clientY), s=curStrat();
   if(S.editCallouts){
     const cEl=e.target.closest('[data-callout]');
@@ -789,7 +798,7 @@ document.addEventListener('gesturestart', e=>e.preventDefault());
 
 function deleteSelected(){ if(!S.selected) return; const id=S.selected; S.selected=null; mutate(s=>{ s.objects=s.objects.filter(o=>o.id!==id); }); }
 document.addEventListener('keydown', e=>{
-  if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+  if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || S.shared) return;
   if((e.key==='Delete'||e.key==='Backspace') && S.selected){ e.preventDefault(); deleteSelected(); }
   else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); }
   else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); }
@@ -879,13 +888,56 @@ $('stratList').addEventListener('click', e=>{
 });
 $('btnNew').onclick=()=>{ const s=curStrat(); const n=newStrat(s?.map, null, s?.side); S.curId=n.id; persist(); openStrat(n.id); openPanel(false); setTimeout(()=>{ $('stratName').focus(); $('stratName').select(); },250); };
 function openStrat(id){
+  if(S.shared) exitShared();
   S.curId=id; S.ui.cur=id; lsSet(LS_UI,S.ui);
   S.selected=null; S.history=[]; S.future=[]; S.ruler=null;
   renderAll(); renderStratList();
 }
 
+/* ---------------- 分享連結（唯讀） ---------------- */
+const b64u = bytes => { let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c=>c.charCodeAt(0));
+async function packStrat(s){
+  const raw = new TextEncoder().encode(JSON.stringify({v:1,n:s.name,m:s.map,s:s.side,o:s.objects}));
+  if(window.CompressionStream){ try{ const buf=await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer(); return 'z'+b64u(new Uint8Array(buf)); }catch(e){} }
+  return 'j'+b64u(raw);
+}
+async function unpackStrat(code){
+  let bytes=unb64u(code.slice(1));
+  if(code[0]==='z') bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+  const d=JSON.parse(new TextDecoder().decode(bytes));
+  return {id:'shared', name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], updatedAt:Date.now()};
+}
+$('btnShare').onclick=async()=>{
+  const s=curStrat(); if(!s) return;
+  const url=location.origin+location.pathname+'#s='+await packStrat(s);
+  $('textTitle').textContent='分享這套戰術';
+  $('textDesc').textContent='把連結傳給隊友，點開就能看到「'+s.name+'」（唯讀，可存成自己的）。之後如果你修改了，要重新分享新的連結。';
+  $('textArea').value=url; $('textShare').style.display=navigator.share?'':'none'; showModal('textModal',true);
+};
+$('textShare').onclick=()=>{ navigator.share({title:curStrat()?.name||'VALO 戰術', url:$('textArea').value}).catch(()=>{}); };
+async function checkHash(){
+  const h=location.hash; if(!h.startsWith('#s=')) return false;
+  try{ const st=await unpackStrat(h.slice(3)); if(!S.mapById[st.map]) throw new Error('map'); enterShared(st); return true; }
+  catch(e){ console.warn(e); toast('這個分享連結無法開啟'); return false; }
+}
+function enterShared(st){
+  if(S.editCallouts) toggleEditCallouts(false);
+  setTool('select'); S.shared=st; S.selected=null; S.history=[]; S.future=[];
+  document.body.classList.add('viewing'); $('shareText').textContent='👀 查看分享：'+st.name; $('stratName').readOnly=true;
+  renderAll(); setStatus('唯讀');
+}
+function exitShared(){
+  if(!S.shared) return; S.shared=null; document.body.classList.remove('viewing'); $('stratName').readOnly=false;
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+}
+$('shareSave').onclick=()=>{ const st=S.shared; exitShared(); const c=JSON.parse(JSON.stringify(st)); c.id=uid(); c.createdAt=c.updatedAt=Date.now(); S.db.strats[c.id]=c; persist(); openStrat(c.id); toast('已存到我的戰術'); };
+$('shareClose').onclick=()=>{ exitShared(); openStrat(S.curId); setStatus('✓ 已儲存'); };
+window.addEventListener('hashchange',()=>{ if(S.maps.length) checkHash(); });
+
 /* ---------------- 匯出 / 匯入 ---------------- */
 $('btnExport').onclick=()=>{
+  $('textShare').style.display='none';
   const data=JSON.stringify(S.db,null,1), name='valo-strats-'+new Date().toISOString().slice(0,10)+'.json';
   try{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type:'application/json'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); toast('已下載備份檔'); }
   catch(e){}
@@ -966,6 +1018,7 @@ async function boot(){
   $('loading').style.display='none';
   fitView(); renderAgents(); renderAbilities(); openStrat(S.curId);
   setStatus(ghReady()?'☁ 準備同步…':'✓ 已儲存在此裝置');
+  await checkHash();
   if(ghReady()) sync();
   setInterval(()=>{ if(document.visibilityState==='visible' && ghReady()) sync(); }, 90e3);
 }
