@@ -90,7 +90,7 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .agent.on{border-color:var(--red);background:#2a1b22}
 .agent.on span{color:var(--text)}
 @media (min-width:900px) and (min-aspect-ratio:5/4){
-  #app{display:grid;grid-template-columns:clamp(310px,26vw,390px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  #app{display:grid;grid-template-columns:clamp(360px,28vw,460px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
   #topbar{grid-column:1/-1}
   #stage{grid-column:2;grid-row:2}
   #dock{grid-column:1;grid-row:2;border-top:0;border-right:1px solid var(--line);overflow:hidden;display:flex;flex-direction:column;gap:8px;padding:10px 10px calc(10px + var(--safe-b));min-height:0}
@@ -99,13 +99,14 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
   #toolRow .sep,#toolRow .spacer,#btnDock,.scrollBtn{display:none!important}
   #teamSeg{width:100%}
   #teamSeg button{flex:1}
-  body.dockmin .agentsWrap,body.dockmin #abilityRow{display:flex}
+  body.dockmin .agentsWrap{display:flex}
+  body.dockmin #abilityRow{display:grid}
   /* 特務：中間可捲動區 */
   .agentsWrap{order:2;flex:1 1 auto!important;min-height:120px;overflow-y:auto;flex-direction:column;align-items:stretch;gap:6px;border-top:1px solid var(--line);padding-top:10px}
   #roleSeg{grid-template-columns:repeat(5,1fr)}
   #roleSeg button[data-role=all]{grid-column:auto}
   #roleSeg button{height:28px;font-size:12px;padding:0 2px}
-  #agentRow{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:4px;overflow:visible}
+  #agentRow{display:grid;grid-template-columns:repeat(auto-fill,minmax(60px,1fr));gap:6px;overflow:visible}
   .agent{width:auto}
   .agent span{max-width:100%}
   .rlabel{writing-mode:horizontal-tb;grid-column:1/-1;height:auto;border-left:0;margin:4px 0 0;padding:0;letter-spacing:.1em;font-size:11px}
