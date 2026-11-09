@@ -224,6 +224,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       <div id="selBar">
         <div class="info" id="selInfo"></div>
         <button class="tool" id="selTeam">友/敵</button>
+        <button class="tool" id="selCal">調整範圍</button>
         <button class="tool" id="selDup">複製</button>
         <button class="tool" id="selDel" style="color:var(--red)">刪除</button>
       </div>
@@ -292,7 +293,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       </div>
       <div class="sec">
         <h3>📐 技能尺寸校準</h3>
-        <p>技能範圍以「公尺」記錄，並依每張地圖的官方座標比例換算，所以不能在地圖上隨意縮放。目前內建數值都是<b>未經驗證的估計值（待校準）</b>。你可以用「測距」工具對照遊戲內實際距離，再在這裡修正；修正後會標記為已校準並一起同步。</p>
+        <p>技能範圍以「公尺」記錄，並依每張地圖的官方座標比例換算，所以不能在地圖上隨意縮放。目前內建數值都是<b>未經驗證的估計值（待校準）</b>。沒有範圍的技能也可以在這裡自己選形狀。可以用「測距」工具對照遊戲內實際距離再修正；修改過的會標記為「自訂」並一起同步。</p>
         <div class="field"><label>選擇特務</label><select id="calAgent"></select></div>
         <div id="calList"></div>
       </div>
@@ -333,7 +334,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
    ========================================================= */
 const ABIL = {
   // Brimstone
-  'Incendiary':{shape:'circle',r:4.5}, 'Sky Smoke':{shape:'circle',r:4.1}, 'Stim Beacon':{shape:'circle',r:6}, 'Orbital Strike':{shape:'circle',r:9},
+  'Incendiary':{shape:'circle',r:4.5}, 'Sky Smoke':{shape:'circle',r:4.15}, 'Stim Beacon':{shape:'circle',r:6}, 'Orbital Strike':{shape:'circle',r:9},
   // Omen
   'Dark Cover':{shape:'circle',r:4.1}, 'Paranoia':{shape:'rect',len:34,w:6},
   // Viper
@@ -379,13 +380,22 @@ const ABIL = {
   // Iso
   'Undercut':{shape:'line',len:40}, 'Contingency':{shape:'rect',len:30,w:6}, 'Kill Contract':{shape:'rect',len:30,w:7},
   // Tejo
-  'Guided Salvo':{shape:'circle',r:4.5}, 'Armageddon':{shape:'rect',len:40,w:8}
+  'Guided Salvo':{shape:'circle',r:4.5}, 'Armageddon':{shape:'rect',len:40,w:8}, 'Special Delivery':{shape:'circle',r:5}, 'Stealth Drone':{shape:'circle',r:15},
+  // 補充（估計值，待校準）
+  'Cosmic Divide':{shape:'rect',len:100,w:1}, 'Thrash':{shape:'circle',r:7}, 'Dizzy':{shape:'cone',len:20,deg:60},
+  'Barrier Mesh':{shape:'cross',len:10}, 'Showstopper':{shape:'circle',r:7}, 'Blast Pack':{shape:'circle',r:4},
+  'Trailblazer':{shape:'circle',r:4.5}, 'M-pulse':{shape:'circle',r:7}, 'Bassquake':{shape:'rect',len:30,w:14},
+  'Displacement':{shape:'circle',r:6}, 'Suspension':{shape:'circle',r:8}, 'Interceptor':{shape:'circle',r:10},
+  'Chokehold':{shape:'circle',r:6}, 'Saturate':{shape:'circle',r:6}, 'Convergent Paths':{shape:'rect',len:30,w:10}
 };
 /* 煙霧外觀（參考遊戲內煙霧球的配色）：技能英文名 → 樣式 */
 const SMOKE_LOOK = {'Ruse':'clove','Sky Smoke':'brim','Dark Cover':'omen','Nebula':'astra','Cove':'harbor','Waveform':'miks','Poison Cloud':'viper','Cloudburst':'jett','Cyber Cage':'cypher'};
 const SMOKE_HL = {miks:'#fff3a0',brim:'#ffffff',omen:'#6b4fa0',astra:'#ffcc80',harbor:'#bff4ff',viper:'#e8ff9a',jett:'#ffffff',cypher:'#ffffff'};
 const SMOKE_RIM = {miks:'#4f7f9a',brim:'#d9853b',omen:'#4a3474',astra:'#a64dd6',harbor:'#1f5f9a',viper:'#1e5f3e',jett:'#8fb6d6',cypher:'#9aa6b2'};
-const SHAPE_PARAMS = {circle:[['r','半徑']], cone:[['len','長度'],['deg','角度°']], rect:[['len','長度'],['w','寬度']], line:[['len','長度']]};
+const SHAPE_PARAMS = {circle:[['r','半徑']], cone:[['len','長度'],['deg','角度°']], rect:[['len','長度'],['w','寬度']], line:[['len','長度']], cross:[['len','每條長']]};
+const SHAPE_NAME = {circle:'圓形', cone:'扇形', rect:'長方形', line:'直線', cross:'十字'};
+const SHAPE_DEFAULT = {circle:{r:5}, cone:{len:20,deg:60}, rect:{len:20,w:4}, line:{len:20}, cross:{len:10}};
+function dimText(def){ return def.shape==='circle'?`半徑 ${def.r}m`: def.shape==='cone'?`長 ${def.len}m · ${def.deg}°`: def.shape==='rect'?`${def.len}m × ${def.w}m`: def.shape==='cross'?`十字 每條 ${def.len}m`:`長 ${def.len}m`; }
 const SLOT_ORDER = ['Grenade','Ability1','Ability2','Ultimate'];
 const SLOT_KEY = {Grenade:'C',Ability1:'Q',Ability2:'E',Ultimate:'X'};
 
@@ -681,7 +691,15 @@ function renderCallouts(){
     return `<text data-callout="${i}" transform="translate(${r1(p.x)} ${r1(p.y)}) rotate(${-R})">${esc(t.trim())}</text>`;
   }).join('');
 }
-function abilDef(en){ const base=ABIL[en]; if(!base) return null; const c=S.db.calib[en]; return (c && c.v && Object.keys(c.v).length) ?Object.assign({},base,c.v,{calibrated:true,_en:en}) : Object.assign({},base,{_en:en}); }
+function abilDef(en){
+  const base=ABIL[en], c=S.db.calib[en], v=(c&&c.v)||{};
+  if(v.shape==='none') return null;
+  if(!base && !v.shape) return null;
+  const custom=Object.keys(v).length>0;
+  const shapeChanged = v.shape && (!base || v.shape!==base.shape);
+  const merged = shapeChanged ? Object.assign({}, SHAPE_DEFAULT[v.shape], v) : Object.assign({}, base, v);
+  return Object.assign(merged, {calibrated:custom, _en:en});
+}
 /* 每位特務的代表色：取官方主題漸層色中最鮮豔的一個，調整亮度 */
 function hexToHsl(h){ h=h.replace('#','').slice(0,6); const r=parseInt(h.slice(0,2),16)/255,g=parseInt(h.slice(2,4),16)/255,b=parseInt(h.slice(4,6),16)/255;
   const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2; let hh=0, ss=0;
@@ -726,6 +744,10 @@ function shapeSVG(o, def, k, col, acol){
     const L=def.len*k, w=Math.max(def.w*k, 2/S.view.s), x0=def.centered?-L/2:0;
     return `<rect ${rot} x="${x0}" y="${-w/2}" width="${L}" height="${w}" ${fill}/>`;
   }
+  if(def.shape==='cross'){
+    const L=def.len*k/2, w=Math.max(1*k,2.5/S.view.s);
+    return `<g transform="rotate(${o.angle||0})"><rect x="${-L}" y="${-w/2}" width="${2*L}" height="${w}" transform="rotate(45)" ${fill}/><rect x="${-L}" y="${-w/2}" width="${2*L}" height="${w}" transform="rotate(-45)" ${fill}/></g>`;
+  }
   if(def.shape==='line'){
     const L=def.len*k; return `<g ${rot}><line x1="0" y1="0" x2="${L}" y2="0" stroke="${col}" stroke-width="${6/S.view.s}"/><line x1="0" y1="0" x2="${L}" y2="0" stroke="${acol}" stroke-width="${3/S.view.s}" ${o.team==='enemy'?`stroke-dasharray="${6/S.view.s} ${4/S.view.s}"`:''}/></g>`;
   }
@@ -733,7 +755,7 @@ function shapeSVG(o, def, k, col, acol){
 }
 function handlePos(o, def, k){
   if(!def || def.shape==='circle') return null;
-  const L = def.len*k*(def.shape==='rect'&&def.centered?0.5:1), a=(o.angle||0)*Math.PI/180;
+  const L = def.len*k*((def.shape==='rect'&&def.centered)||def.shape==='cross'?0.5:1), a=(o.angle||0)*Math.PI/180;
   return {x:o.x+L*Math.cos(a), y:o.y+L*Math.sin(a)};
 }
 function renderObjects(){
@@ -787,8 +809,8 @@ function renderSelBar(){
   else if(o.type==='ability'){
     const ab=findAbility(o), def=ab&&abilDef(ab.en), a=S.agentById[o.agent];
     let dim='僅標記位置（尚無範圍資料）';
-    if(def){ dim = def.shape==='circle'?`半徑 ${def.r}m`: def.shape==='cone'?`長 ${def.len}m · ${def.deg}°`: def.shape==='rect'?`${def.len}m × ${def.w}m`:`長 ${def.len}m`;
-      dim += def.calibrated?'<span class="badge ok">已校準</span>':'<span class="badge">待校準</span>';
+    if(def){ dim = dimText(def);
+      dim += def.calibrated?'<span class="badge ok">自訂</span>':'<span class="badge">待校準</span>';
       if(def.shape!=='circle') dim+=' · 拖白點旋轉'; }
     info=`<b>${esc(ab?ab.tw:'技能')}</b> <span style="color:var(--dim)">${esc(a?a.tw:'')}</span><small>${dim}</small>`;
   }
@@ -797,6 +819,7 @@ function renderSelBar(){
   else if(o.type==='arrow') info='<b>箭頭</b><small>拖曳移動</small>';
   $('selInfo').innerHTML=info;
   $('selTeam').style.display = o.type==='spike'?'none':'';
+  $('selCal').style.display = o.type==='ability'?'':'none';
   bar.style.display='flex';
 }
 
@@ -971,7 +994,7 @@ function renderAbilities(){
   for(const ab of a.abilities){
     const def=abilDef(ab.en);
     const on = p&&p.type==='ability'&&p.agent===a.id&&p.slot===ab.slot;
-    h += `<button class="abil${on?' on':''}" data-abil="${ab.slot}" style="--ac:${ac}"><span class="k">${ab.key}</span><img src="${esc(ab.icon||'')}"><span class="n">${esc(ab.tw)}<small>${def?(def.shape==='circle'?'圓形':def.shape==='cone'?'扇形':def.shape==='rect'?'長方形':'直線'):'圖示'}</small></span>${def?`<span class="dot${def.calibrated?' ok':''}" title="${def.calibrated?'已校準':'待校準'}"></span>`:''}</button>`;
+    h += `<button class="abil${on?' on':''}" data-abil="${ab.slot}" style="--ac:${ac}"><span class="k">${ab.key}</span><img src="${esc(ab.icon||'')}"><span class="n">${esc(ab.tw)}<small>${def?SHAPE_NAME[def.shape]:'圖示'}</small></span>${def?`<span class="dot${def.calibrated?' ok':''}" title="${def.calibrated?'自訂':'待校準'}"></span>`:''}</button>`;
   }
   row.innerHTML=h;
 }
@@ -1008,6 +1031,9 @@ applyDock();
 $('btnUndo').onclick=undo; $('btnRedo').onclick=redo;
 $('btnClear').onclick=()=>{ if(!curStrat().objects.length) return; askConfirm('清空這套戰術上的所有物件？（可用 ↶ 復原）', ()=>{ S.selected=null; mutate(s=>{ s.objects=[]; }); }); };
 $('selDel').onclick=deleteSelected;
+$('selCal').onclick=()=>{ const o=curStrat().objects.find(x=>x.id===S.selected); if(!o) return;
+  $('btnSettings').click(); $('calAgent').value=o.agent; $('calAgent')._touched=true; renderCalib();
+  setTimeout(()=>{ const el=document.getElementById('cal-'+o.slot); if(el){ el.scrollIntoView({block:'center'}); el.style.outline='2px solid var(--red)'; setTimeout(()=>el.style.outline='',1500); } },80); };
 $('selTeam').onclick=()=>{ const id=S.selected; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(o&&o.team) o.team=o.team==='ally'?'enemy':'ally'; }); };
 $('selDup').onclick=()=>{ const id=S.selected; let nid=null; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(!o) return; if(o.type==='spike') return;
   const c=JSON.parse(JSON.stringify(o)); c.id=nid=uid(); const off=12;
@@ -1147,14 +1173,20 @@ function renderCalib(){
   if(S.selAgent && !sel._touched) sel.value=S.selAgent;
   const a=S.agentById[sel.value]; if(!a) return;
   $('calList').innerHTML = a.abilities.map(ab=>{
-    const base=ABIL[ab.en], def=abilDef(ab.en);
-    if(!base) return `<div class="cal"><img src="${esc(ab.icon||'')}"><div class="nm">${ab.key} · ${esc(ab.tw)}<small>${esc(ab.en)} · 只顯示圖示，無範圍</small></div></div>`;
-    const inputs=SHAPE_PARAMS[base.shape].map(([k,l])=>`<label>${l}<input type="number" step="0.05" min="0" data-cal="${esc(ab.en)}" data-k="${k}" value="${def[k]}"></label>`).join('');
-    return `<div class="cal"><img src="${esc(ab.icon||'')}"><div class="nm">${ab.key} · ${esc(ab.tw)} ${def.calibrated?'<span class="badge ok">已校準</span>':'<span class="badge">待校準</span>'}<small>${esc(ab.en)} · 單位：公尺</small></div>${inputs}${def.calibrated?`<button class="tool" data-calreset="${esc(ab.en)}" style="height:32px">還原</button>`:''}</div>`;
+    const def=abilDef(ab.en), shape=def?def.shape:'none', custom=!!(S.db.calib[ab.en]&&S.db.calib[ab.en].v&&Object.keys(S.db.calib[ab.en].v).length);
+    const opts=['none','circle','cone','rect','line','cross'].map(x=>`<option value="${x}" ${x===shape?'selected':''}>${x==='none'?'無範圍（只顯示圖示）':SHAPE_NAME[x]}</option>`).join('');
+    const inputs=def?SHAPE_PARAMS[shape].map(([k,l])=>`<label>${l}<input type="number" step="0.05" min="0" data-cal="${esc(ab.en)}" data-k="${k}" value="${def[k]}"></label>`).join(''):'';
+    const badge = def ? (custom?'<span class="badge ok">自訂</span>':'<span class="badge">待校準</span>') : '';
+    return `<div class="cal" id="cal-${esc(ab.slot)}"><img src="${esc(ab.icon||'')}"><div class="nm">${ab.key} · ${esc(ab.tw)} ${badge}<small>${esc(ab.en)} · 單位：公尺</small></div>
+      <select data-calshape="${esc(ab.en)}" style="height:32px;background:var(--bg);border:1px solid var(--line);border-radius:5px">${opts}</select>${inputs}${custom?`<button class="tool" data-calreset="${esc(ab.en)}" style="height:32px">還原預設</button>`:''}</div>`;
   }).join('');
 }
 $('calAgent').onchange=e=>{ e.target._touched=true; renderCalib(); };
 $('calList').addEventListener('change', e=>{
+  const sh=e.target.closest('[data-calshape]');
+  if(sh){ const en=sh.dataset.calshape, val=sh.value, base=ABIL[en];
+    const v = (base && val===base.shape) ? {} : (val==='none' ? {shape:'none'} : Object.assign({shape:val}, SHAPE_DEFAULT[val]));
+    S.db.calib[en]={v, updatedAt:Date.now()}; persist(); renderCalib(); renderObjects(); renderAbilities(); return; }
   const i=e.target.closest('[data-cal]'); if(!i) return;
   const v=parseFloat(i.value); if(!(v>0)) { renderCalib(); return; }
   const en=i.dataset.cal, cur=S.db.calib[en]||{v:{}};
