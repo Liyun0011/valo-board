@@ -300,6 +300,11 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
         <div id="calList"></div>
       </div>
       <div class="sec">
+        <h3>🔄 遊戲資料</h3>
+        <p id="gameVer">遊戲版本一更新，網站會自動重新下載地圖與特務資料。如果地圖看起來還是舊的，可以手動重新下載。</p>
+        <div class="btns"><button class="tool" id="btnReloadData">重新下載地圖與特務資料</button></div>
+      </div>
+      <div class="sec">
         <h3>ℹ️ 關於</h3>
         <p>私人非商業用途的戰術白板。地圖、地名、特務與技能圖示來自社群維護的 valorant-api.com；VALORANT 為 Riot Games 的商標，本網站與 Riot Games 無關。</p>
       </div>
@@ -427,7 +432,9 @@ async function getData(path){
 }
 async function loadGameData(){
   const cached = lsGet(LS_CACHE,null);
-  if(cached && cached.t > Date.now()-12*3600e3 && cached.maps?.length) return cached;
+  // 遊戲版本一更新（例如地圖改版），就重新下載地圖與特務資料
+  let ver=null; try{ ver=(await getData('/version')).version; }catch(e){}
+  if(cached && cached.maps?.length && (ver ? cached.ver===ver : cached.t > Date.now()-12*3600e3)) return cached;
   const [mEn,mTw,aEn,aTw] = await Promise.all([
     getData('/maps?language=en-US'), getData('/maps?language=zh-TW'),
     getData('/agents?isPlayableCharacter=true&language=en-US'), getData('/agents?isPlayableCharacter=true&language=zh-TW')
@@ -435,7 +442,7 @@ async function loadGameData(){
   const twMap = Object.fromEntries(mTw.map(m=>[m.uuid,m]));
   const maps = mEn.filter(m=>m.displayIcon && m.callouts && m.callouts.length>3 && m.xMultiplier).map(m=>{
     const tw = twMap[m.uuid]||{};
-    return { id:m.uuid, en:m.displayName, tw:tw.displayName||m.displayName, icon:m.displayIcon,
+    return { id:m.uuid, en:m.displayName, tw:tw.displayName||m.displayName, icon:m.displayIcon+(ver?'?v='+encodeURIComponent(ver):''),
       xm:m.xMultiplier, ym:m.yMultiplier, xa:m.xScalarToAdd, ya:m.yScalarToAdd,
       callouts:m.callouts.map((c,i)=>{ const t=(tw.callouts||[])[i]||c; return {x:c.location.x,y:c.location.y,
         sup:c.superRegionName, reg:c.regionName, twSup:t.superRegionName, twReg:t.regionName}; }) };
@@ -448,7 +455,7 @@ async function loadGameData(){
       abilities:SLOT_ORDER.map(slot=>{ const x=(a.abilities||[]).find(b=>b.slot===slot); if(!x) return null;
         return {slot, key:SLOT_KEY[slot], en:x.displayName, tw:(twAb[slot]||x).displayName, icon:x.displayIcon}; }).filter(Boolean) };
   }).sort((a,b)=>a.en.localeCompare(b.en));
-  const out = {t:Date.now(), maps, agents};
+  const out = {t:Date.now(), ver, maps, agents};
   lsSet(LS_CACHE, out);
   return out;
 }
@@ -1184,7 +1191,7 @@ $('importFile').onchange=async e=>{
 /* ---------------- 設定 ---------------- */
 function showModal(id,o){ $(id).classList.toggle('show',o); }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m||e.target.closest('[data-close]')) showModal(m.id,false); }));
-$('btnSettings').onclick=()=>{ $('ghOwner').value=GH.owner; $('ghRepo').value=GH.repo; $('ghToken').value=GH.token?'••••••••':''; renderCalib(); showModal('settingsModal',true);
+$('btnSettings').onclick=()=>{ const gv=lsGet(LS_CACHE,null)?.ver; if(gv) $('gameVer').textContent='目前地圖資料版本：'+gv+'。遊戲版本一更新，網站會自動重新下載；如果地圖看起來還是舊的，可以手動重新下載。'; $('ghOwner').value=GH.owner; $('ghRepo').value=GH.repo; $('ghToken').value=GH.token?'••••••••':''; renderCalib(); showModal('settingsModal',true);
   $('syncMsg').textContent = ghReady()?`目前連線：${GH.owner}/${GH.repo}`:'尚未設定，戰術目前只存在這台裝置。'; };
 $('ghSave').onclick=()=>{
   GH.owner=$('ghOwner').value.trim(); GH.repo=$('ghRepo').value.trim();
@@ -1194,6 +1201,7 @@ $('ghSave').onclick=()=>{
 };
 $('ghSyncNow').onclick=()=>{ if(!ghReady()){ $('syncMsg').textContent='請先填寫並儲存'; return; } $('syncMsg').textContent='同步中…'; sync(true); };
 $('ghForget').onclick=()=>{ GH.token=''; lsSet(LS_GH,GH); $('ghToken').value=''; $('syncMsg').textContent='已從這台裝置移除權杖（戰術仍保留在此裝置）'; setStatus('✓ 已儲存'); };
+$('btnReloadData').onclick=()=>{ try{ localStorage.removeItem(LS_CACHE); }catch(e){} location.reload(); };
 $('rotFix').onclick=()=>{ const m=curMap(); const cur=(S.db.mapRot[m.id]?.rot)||0; S.db.mapRot[m.id]={rot:(cur+90)%360, updatedAt:Date.now()}; persist(); renderAll(); };
 $('rotReset').onclick=()=>{ const m=curMap(); S.db.mapRot[m.id]={rot:0, updatedAt:Date.now()}; persist(); renderAll(); };
 function renderCalib(){
