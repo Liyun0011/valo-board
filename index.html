@@ -201,6 +201,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
     <span id="saveStatus"></span>
     <span class="spacer"></span>
     <button class="ibtn" id="btnShare" title="分享這套戰術">🔗 分享</button>
+    <button class="ibtn" id="btnImportTop" title="輸入隊友的分享碼">📥 匯入</button>
     <select id="mapSel" title="地圖"></select>
     <div class="seg side" id="sideSeg"><button data-v="atk">進攻</button><button data-v="def">防守</button></div>
     <div class="seg" id="langSeg"><button data-v="zh">中</button><button data-v="en">EN</button><button data-v="off">隱藏</button></div>
@@ -279,6 +280,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
   <div id="stratList"></div>
   <div class="pf">
     <button class="tool primary" id="btnNew">＋ 新戰術</button>
+    <button class="tool" id="btnImportShare">📥 匯入分享</button>
     <button class="tool" id="btnExport">匯出備份</button>
     <button class="tool" id="btnImport">匯入備份</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
@@ -341,10 +343,22 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
 <div class="modal" id="textModal">
   <div class="card">
     <div class="ph"><h2 id="textTitle">備份內容</h2><button class="ibtn" data-close>✕</button></div>
-    <div class="body"><p id="textDesc" style="margin:0;color:var(--dim);font-size:12px"></p><textarea id="textArea" readonly></textarea><div class="btns"><button class="tool primary" id="textCopy">複製</button><button class="tool" id="textShare" style="display:none">分享到…</button></div></div>
+    <div class="body"><p id="textDesc" style="margin:0;color:var(--dim);font-size:12px"></p><textarea id="textArea" readonly></textarea><div class="btns"><button class="tool primary" id="textCopy">複製</button><button class="tool" id="textShare" style="display:none">分享到…</button><button class="tool" id="textCode" style="display:none">只複製分享碼</button><button class="tool" id="textFile" style="display:none">下載分享檔</button></div></div>
   </div>
 </div>
 
+<div class="modal" id="importModal">
+  <div class="card">
+    <div class="ph"><h2>📥 匯入分享</h2><button class="ibtn" data-close>✕</button></div>
+    <div class="body">
+      <p style="margin:0;color:var(--dim);font-size:13px;line-height:1.6">把隊友傳來的<b>分享連結</b>或<b>分享碼</b>貼在下面，按「開啟」。也可以選擇隊友傳來的<b>分享檔</b>（.json）。</p>
+      <textarea id="importText" placeholder="在這裡貼上（Ctrl+V）" style="height:110px"></textarea>
+      <div class="btns"><button class="tool primary" id="importOpen">開啟</button><button class="tool" id="importPick">選擇分享檔…</button></div>
+      <input type="file" id="importShareFile" accept="application/json,.json" hidden>
+      <div id="importMsg" style="font-size:12px;color:var(--warn)"></div>
+    </div>
+  </div>
+</div>
 <div class="modal" id="promptModal">
   <div class="card" style="width:min(400px,100%)">
     <div class="cfm"><p id="pmTitle" style="font-weight:700"></p><input id="pmInput" maxlength="30" style="height:40px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:0 10px;font-size:15px"><p id="pmDefault" style="font-size:12px;color:var(--dim)"></p>
@@ -1228,25 +1242,76 @@ $('alignBar').addEventListener('click', e=>{
 /* ---------------- 分享連結（唯讀） ---------------- */
 const b64u = bytes => { let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
 const unb64u = s => Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c=>c.charCodeAt(0));
+/* 精簡分享格式 v2：特務/地圖用英文名、座標取整數，再壓縮 */
+function compactStrat(s){
+  const R=Math.round, A=id=>S.agentById[id]?.en||id, SL=sl=>SLOT_KEY[sl]||sl;
+  const o=s.objects.map(o=>{ const t=o.team==='enemy'?1:0;
+    if(o.type==='agent') return ['a',A(o.agent),t,R(o.x),R(o.y)];
+    if(o.type==='ability') return ['b',A(o.agent),SL(o.slot),t,R(o.x),R(o.y),R(o.angle||0)];
+    if(o.type==='spike') return ['s',R(o.x),R(o.y)];
+    if(o.type==='pen') return ['p',t].concat(...o.pts.map(p=>[R(p[0]),R(p[1])]));
+    if(o.type==='arrow') return ['r',t,R(o.x),R(o.y),R(o.x2),R(o.y2)];
+    return null; }).filter(Boolean);
+  return [2, s.origin||s.id, s.name, S.mapById[s.map]?.en||s.map, s.side==='def'?1:0, o];
+}
+function expandStrat(d){
+  const [, i, n, mapEn, side, arr]=d;
+  const m=S.maps.find(x=>x.en===mapEn)||S.mapById[mapEn];
+  const ag=en=>(S.agents.find(a=>a.en===en)||S.agentById[en])?.id||en;
+  const slotOf=k=>Object.keys(SLOT_KEY).find(x=>SLOT_KEY[x]===k)||k;
+  const objs=(arr||[]).map(a=>{ const id=uid(), T=v=>v?'enemy':'ally'; switch(a[0]){
+    case 'a': return {id,type:'agent',agent:ag(a[1]),team:T(a[2]),x:a[3],y:a[4]};
+    case 'b': return {id,type:'ability',agent:ag(a[1]),slot:slotOf(a[2]),team:T(a[3]),x:a[4],y:a[5],angle:a[6]};
+    case 's': return {id,type:'spike',x:a[1],y:a[2]};
+    case 'p': { const pts=[]; for(let k=2;k+1<a.length;k+=2) pts.push([a[k],a[k+1]]); return {id,type:'pen',team:T(a[1]),pts}; }
+    case 'r': return {id,type:'arrow',team:T(a[1]),x:a[2],y:a[3],x2:a[4],y2:a[5]};
+    default: return null; } }).filter(Boolean);
+  return {id:'shared', origin:i||null, name:n||'分享的戰術', map:m?m.id:mapEn, side:side?'def':'atk', objects:objs, updatedAt:Date.now()};
+}
+async function deflate(raw){ return new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer()); }
+async function inflate(bytes){ return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer()); }
 async function packStrat(s){
-  const raw = new TextEncoder().encode(JSON.stringify({v:1,i:s.origin||s.id,n:s.name,m:s.map,s:s.side,o:s.objects,c:s.colors||{}}));
-  if(window.CompressionStream){ try{ const buf=await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer(); return 'z'+b64u(new Uint8Array(buf)); }catch(e){} }
-  return 'j'+b64u(raw);
+  const raw=new TextEncoder().encode(JSON.stringify(compactStrat(s)));
+  if(window.CompressionStream){ try{ return '2'+b64u(await deflate(raw)); }catch(e){} }
+  return '3'+b64u(raw);
 }
 async function unpackStrat(code){
-  let bytes=unb64u(code.slice(1));
-  if(code[0]==='z') bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+  const t=code[0]; let bytes=unb64u(code.slice(1));
+  if(t==='2'||t==='z') bytes=await inflate(bytes);
   const d=JSON.parse(new TextDecoder().decode(bytes));
-  return {id:'shared', origin:d.i||null, name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], colors:(d.c&&typeof d.c==='object')?d.c:{}, updatedAt:Date.now()};
+  if(Array.isArray(d)) return expandStrat(d);
+  return {id:'shared', origin:d.i||null, name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], updatedAt:Date.now()};
 }
 $('btnShare').onclick=async()=>{
   const s=curStrat(); if(!s) return;
-  const url=location.origin+location.pathname+'#s='+await packStrat(s);
+  const code=await packStrat(s);
+  S.shareUrl=location.origin+location.pathname+'#s='+code;
   $('textTitle').textContent='分享這套戰術';
-  $('textDesc').textContent='把連結傳給隊友，點開就能看到「'+s.name+'」（唯讀，可存成自己的）。之後如果你修改了，要重新分享新的連結。';
-  $('textArea').value=url; $('textShare').style.display=navigator.share?'':'none'; showModal('textModal',true);
+  $('textDesc').textContent='把下面的分享碼傳給隊友，隊友在網頁左上角 ☰ → 📥 匯入分享 貼上，就能看到「'+s.name+'」（唯讀，可存成自己的）。也可以改傳連結，隊友點了就能直接開。之後你修改了，要重新分享。';
+  $('textArea').value='VALO:'+code; $('textArea').style.height='90px';
+  $('textCopy').textContent='複製分享碼'; $('textCode').textContent='複製連結';
+  $('textShare').style.display=navigator.share?'':'none'; $('textCode').style.display=''; $('textFile').style.display='';
+  showModal('textModal',true);
 };
-$('textShare').onclick=()=>{ navigator.share({title:curStrat()?.name||'VALO 戰術', url:$('textArea').value}).catch(()=>{}); };
+$('textCode').onclick=async()=>{ const url=S.shareUrl||''; try{ await navigator.clipboard.writeText(url); toast('已複製連結'); }catch(e){ $('textArea').value=url; $('textArea').select(); toast('請手動複製'); } };
+$('textFile').onclick=()=>{ const s=curStrat(); const data=JSON.stringify({valoShare:1,v:1,i:s.origin||s.id,n:s.name,m:s.map,s:s.side,o:s.objects,c:s.colors||{}});
+  try{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type:'application/json'})); a.download=(s.name||'戰術').replace(/[\\/:*?"<>|｜]/g,'_')+'.json'; document.body.appendChild(a); a.click(); a.remove(); toast('已下載分享檔'); }catch(e){ toast('無法下載'); } };
+function shareFromJson(d){ return {id:'shared', origin:d.i||null, name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], colors:(d.c&&typeof d.c==='object')?d.c:{}, updatedAt:Date.now()}; }
+async function openShareInput(text){
+  text=(text||'').trim(); if(!text) throw new Error('empty');
+  let st;
+  if(text[0]==='{'){ const d=JSON.parse(text); if(!d.o) throw new Error('fmt'); st=shareFromJson(d); }
+  else { let code=text.includes('#s=')?text.split('#s=')[1]:text.replace(/^VALO:/i,''); code=code.replace(/\s/g,''); st=await unpackStrat(code); }
+  if(!S.mapById[st.map]) throw new Error('map');
+  openPanel(false); enterShared(st);
+}
+$('btnImportTop').onclick=()=>$('btnImportShare').click();
+$('btnImportShare').onclick=()=>{ $('importText').value=''; $('importMsg').textContent=''; showModal('importModal',true); setTimeout(()=>$('importText').focus(),50); };
+$('importOpen').onclick=async()=>{ try{ await openShareInput($('importText').value); showModal('importModal',false); }catch(e){ $('importMsg').textContent='✗ 無法開啟，請確認貼上的是完整的分享連結或分享碼'; } };
+$('importPick').onclick=()=>$('importShareFile').click();
+$('importShareFile').onchange=async e=>{ const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  try{ await openShareInput(await f.text()); showModal('importModal',false); }catch(err){ $('importMsg').textContent='✗ 這不是分享檔'; } };
+$('textShare').onclick=()=>{ navigator.share({title:curStrat()?.name||'VALO 戰術', url:S.shareUrl||$('textArea').value}).catch(()=>{}); };
 async function checkHash(){
   const h=location.hash; if(!h.startsWith('#s=')) return false;
   try{ const st=await unpackStrat(h.slice(3)); if(!S.mapById[st.map]) throw new Error('map'); enterShared(st); return true; }
@@ -1283,7 +1348,7 @@ window.addEventListener('hashchange',()=>{ if(S.maps.length) checkHash(); });
 
 /* ---------------- 匯出 / 匯入 ---------------- */
 $('btnExport').onclick=()=>{
-  $('textShare').style.display='none';
+  $('textShare').style.display='none'; $('textCode').style.display='none'; $('textFile').style.display='none'; $('textCopy').textContent='複製'; $('textArea').style.height='';
   const data=JSON.stringify(S.db,null,1), name='valo-strats-'+new Date().toISOString().slice(0,10)+'.json';
   try{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type:'application/json'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); toast('已下載備份檔'); }
   catch(e){}
@@ -1293,7 +1358,7 @@ $('textCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText($('tex
 $('btnImport').onclick=()=>$('importFile').click();
 $('importFile').onchange=async e=>{
   const f=e.target.files[0]; if(!f) return;
-  try{ const d=JSON.parse(await f.text()); if(!d.strats) throw 0;
+  try{ const d=JSON.parse(await f.text()); if(!d.strats && d.o){ e.target.value=''; await openShareInput(JSON.stringify(d)); return; } if(!d.strats) throw 0;
     const n=Object.values(d.strats).filter(s=>!s.deleted).length;
     S.db=mergeDb(S.db, Object.assign(emptyDb(), d)); persist(); renderStratList(); renderCalib(); toast(`已匯入（${n} 套戰術，較新的版本優先）`);
   }catch(err){ toast('檔案格式不正確'); }
