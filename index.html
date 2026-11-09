@@ -20,7 +20,7 @@ button,select,input{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none}
 #app{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:var(--safe-t)}
 /* top bar */
-#topbar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+#topbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0}
 #topbar::-webkit-scrollbar{display:none}
 .brand{font-weight:900;letter-spacing:.08em;color:var(--red);white-space:nowrap;font-size:15px}
 .ibtn{min-width:36px;height:36px;border-radius:6px;background:var(--panel2);display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;padding:0 8px;white-space:nowrap}
@@ -49,6 +49,7 @@ select{height:36px;background:var(--panel2);border:0;border-radius:6px;padding:0
 #shareBanner .tool{height:32px;border-radius:999px}
 body.viewing #shareBanner{display:flex}
 body.viewing #dock{display:none}
+body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .callouts.edit text{pointer-events:auto;cursor:move;fill:#ffd36b}
 .obj{cursor:grab}
 #overlay{position:absolute;inset:0;pointer-events:none}
@@ -73,9 +74,20 @@ body.viewing #dock{display:none}
 .tool.on{background:var(--text);color:var(--bg)}
 .tool:disabled{opacity:.35}
 .sep{width:1px;height:28px;background:var(--line);flex-shrink:0;margin:0 2px}
-.agent{width:46px;height:46px;border-radius:8px;background:var(--panel2);flex-shrink:0;padding:2px;border:2px solid transparent;position:relative}
-.agent img{width:100%;height:100%;object-fit:cover;border-radius:5px;pointer-events:none}
+.agentsWrap{display:flex;gap:8px;align-items:center;padding:3px 0}
+#roleSeg{flex-shrink:0;display:grid;grid-template-columns:1fr 1fr;gap:2px}
+#roleSeg button[data-role=all]{grid-column:span 2}
+#roleSeg button{height:22px;font-size:11px;padding:0 8px}
+#agentRow{flex:1;min-width:0;padding:0}
+.rlabel{writing-mode:vertical-rl;font-size:10px;font-weight:700;color:var(--dim);letter-spacing:.15em;flex-shrink:0;padding:0 2px;border-left:1px solid var(--line);margin-left:2px;height:52px;display:flex;align-items:center}
+.rlabel:first-child{border-left:0;margin-left:0}
+.agent{width:50px;border-radius:8px;background:var(--panel2);flex-shrink:0;padding:3px 2px 2px;border:2px solid transparent;display:flex;flex-direction:column;align-items:center;gap:1px}
+.agent img{width:38px;height:38px;object-fit:cover;border-radius:5px;pointer-events:none}
+.agent span{font-size:10px;line-height:1.2;max-width:46px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);pointer-events:none}
 .agent.on{border-color:var(--red);background:#2a1b22}
+.agent.on span{color:var(--text)}
+@media (max-width:900px){ .brand{display:none} #stratName{min-width:110px} #btnShare,#btnEditCallouts{font-size:13px} }
+@media (max-height:720px){ .tool{height:34px} .abil{height:42px} .abil img{width:24px;height:24px} #abilityRow{min-height:46px} .agent img{width:32px;height:32px} .agent{width:44px} .rlabel{height:46px} }
 #abilityRow{min-height:56px}
 #abilityRow .empty{font-size:13px;color:var(--dim);padding:0 6px}
 .abil{height:50px;min-width:50px;border-radius:8px;background:var(--panel2);display:inline-flex;align-items:center;gap:6px;padding:0 10px 0 6px;flex-shrink:0;border:2px solid transparent;position:relative}
@@ -195,8 +207,10 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       <button class="tool" id="btnUndo" title="復原">↶</button>
       <button class="tool" id="btnRedo" title="重做">↷</button>
       <button class="tool" id="btnClear">清空</button>
+      <span class="spacer"></span>
+      <button class="tool" id="btnDock" title="收合特務列，讓地圖更大">▾ 收合</button>
     </div>
-    <div class="row" id="agentRow"></div>
+    <div class="agentsWrap"><div class="seg" id="roleSeg"></div><div class="row" id="agentRow"></div></div>
     <div class="row" id="abilityRow"><span class="empty">先選一位特務 → 再選技能 → 點地圖放置</span></div>
   </footer>
 </div>
@@ -327,7 +341,7 @@ const SLOT_ORDER = ['Grenade','Ability1','Ability2','Ultimate'];
 const SLOT_KEY = {Grenade:'C',Ability1:'Q',Ability2:'E',Ultimate:'X'};
 
 const API = 'https://valorant-api.com/v1';
-const LS_DB='vp_db_v1', LS_GH='vp_github_v1', LS_UI='vp_ui_v1', LS_CACHE='vp_gamecache_v2';
+const LS_DB='vp_db_v1', LS_GH='vp_github_v1', LS_UI='vp_ui_v1', LS_CACHE='vp_gamecache_v3';
 const $ = id => document.getElementById(id);
 const svg = $('board'), viewG=$('viewG'), worldG=$('worldG');
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -369,7 +383,7 @@ async function loadGameData(){
   const agents = aEn.map(a=>{
     const tw = twAg[a.uuid]||a;
     const twAb = Object.fromEntries((tw.abilities||[]).map(x=>[x.slot,x]));
-    return { id:a.uuid, en:a.displayName, tw:tw.displayName, icon:a.displayIcon, role:a.role?.displayName||'',
+    return { id:a.uuid, en:a.displayName, tw:tw.displayName, icon:a.displayIcon, role:a.role?.displayName||'', roleTw:tw.role?.displayName||a.role?.displayName||'',
       abilities:SLOT_ORDER.map(slot=>{ const x=(a.abilities||[]).find(b=>b.slot===slot); if(!x) return null;
         return {slot, key:SLOT_KEY[slot], en:x.displayName, tw:(twAb[slot]||x).displayName, icon:x.displayIcon}; }).filter(Boolean) };
   }).sort((a,b)=>a.en.localeCompare(b.en));
@@ -510,7 +524,20 @@ function resize(){
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
   baseS = Math.min(W,H)/1000*0.96;
 }
-function fitView(){ resize(); S.view={s:baseS, tx:(W-1000*baseS)/2, ty:(H-1000*baseS)/2}; applyView(); }
+function contentBox(){
+  const m=curMap(); if(!m) return {x0:0,y0:0,x1:1000,y1:1000};
+  const R=viewRot()*Math.PI/180, c=Math.cos(R), sn=Math.sin(R);
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  m.callouts.forEach((_,i)=>{ const p=calloutXY(m,i), dx=p.x-500, dy=p.y-500, x=500+dx*c-dy*sn, y=500+dx*sn+dy*c;
+    x0=Math.min(x0,x); y0=Math.min(y0,y); x1=Math.max(x1,x); y1=Math.max(y1,y); });
+  const pad=Math.max(x1-x0,y1-y0)*0.12+30;
+  return {x0:Math.max(0,x0-pad), y0:Math.max(0,y0-pad), x1:Math.min(1000,x1+pad), y1:Math.min(1000,y1+pad)};
+}
+function fitView(){
+  resize(); const b=contentBox(), bw=b.x1-b.x0, bh=b.y1-b.y0;
+  const s=Math.min(W/bw, H/bh)*0.97;
+  S.view={s, tx:W/2-(b.x0+bw/2)*s, ty:H/2-(b.y0+bh/2)*s}; applyView();
+}
 function applyView(){
   const v=S.view; viewG.setAttribute('transform',`translate(${v.tx} ${v.ty}) scale(${v.s})`);
   $('calloutG').setAttribute('font-size', Math.max(5, Math.min(26, 13/v.s)));
@@ -806,9 +833,19 @@ document.addEventListener('keydown', e=>{
 });
 
 /* ---------------- 底部工具列 ---------------- */
+const ROLE_ORDER=['Duelist','Initiator','Controller','Sentinel'];
+function roleList(){ const seen=[...new Set(S.agents.map(a=>a.role))]; return ROLE_ORDER.filter(r=>seen.includes(r)).concat(seen.filter(r=>!ROLE_ORDER.includes(r))); }
 function renderAgents(){
-  $('agentRow').innerHTML = S.agents.map(a=>`<button class="agent${a.id===S.selAgent?' on':''}" data-agent="${a.id}" title="${esc(a.tw)} ${esc(a.en)}"><img src="${esc(a.icon)}" alt="${esc(a.tw)}" loading="lazy"></button>`).join('');
+  const roles=roleList(), cur=S.ui.role||'all';
+  const tw=r=>(S.agents.find(a=>a.role===r)?.roleTw)||r;
+  $('roleSeg').innerHTML=`<button data-role="all" class="${cur==='all'?'on':''}">全部</button>`+roles.map(r=>`<button data-role="${esc(r)}" class="${cur===r?'on':''}">${esc(tw(r))}</button>`).join('');
+  const btn=a=>`<button class="agent${a.id===S.selAgent?' on':''}" data-agent="${a.id}" title="${esc(a.tw)} ${esc(a.en)}"><img src="${esc(a.icon)}" alt="" loading="lazy"><span>${esc(a.tw)}</span></button>`;
+  $('agentRow').innerHTML = roles.filter(r=>cur==='all'||cur===r).map(r=>{
+    const list=S.agents.filter(a=>a.role===r);
+    return (cur==='all'?`<span class="rlabel">${esc(tw(r))}</span>`:'')+list.map(btn).join('');
+  }).join('');
 }
+$('roleSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-role]'); if(!b) return; S.ui.role=b.dataset.role; lsSet(LS_UI,S.ui); renderAgents(); $('agentRow').scrollLeft=0; });
 function renderAbilities(){
   const a=S.agentById[S.selAgent], row=$('abilityRow');
   if(!a){ row.innerHTML='<span class="empty">先選一位特務 → 再選技能 → 點地圖放置</span>'; return; }
@@ -848,6 +885,9 @@ function toggleEditCallouts(on){
 $('btnEditCallouts').onclick=()=>toggleEditCallouts(!S.editCallouts);
 $('hintReset').onclick=()=>{ const m=curMap(); askConfirm(`把 ${m.en} 的地名位置還原成預設？`, ()=>{ S.db.calloutPos[m.id]={pos:{},updatedAt:Date.now()}; persist(); renderCallouts(); }); };
 $('teamSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; S.ui.team=b.dataset.v; lsSet(LS_UI,S.ui); setSeg('teamSeg',S.ui.team); };
+function applyDock(){ document.body.classList.toggle('dockmin',!!S.ui.dockMin); $('btnDock').textContent=S.ui.dockMin?'▴ 特務':'▾ 收合'; }
+$('btnDock').onclick=()=>{ S.ui.dockMin=!S.ui.dockMin; lsSet(LS_UI,S.ui); applyDock(); };
+applyDock();
 $('btnUndo').onclick=undo; $('btnRedo').onclick=redo;
 $('btnClear').onclick=()=>{ if(!curStrat().objects.length) return; askConfirm('清空這套戰術上的所有物件？（可用 ↶ 復原）', ()=>{ S.selected=null; mutate(s=>{ s.objects=[]; }); }); };
 $('selDel').onclick=deleteSelected;
@@ -866,7 +906,7 @@ $('mapSel').addEventListener('change', e=>{
   else { const n=newStrat(id, null, s.side); S.curId=n.id; markDirty(); toast('已為 '+S.mapById[id].en+' 建立新戰術'); }
   openStrat(S.curId);
 });
-$('sideSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; curStrat().side=b.dataset.v; markDirty(); renderAll(); };
+$('sideSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; curStrat().side=b.dataset.v; markDirty(); renderAll(); fitView(); };
 $('langSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; S.ui.lang=b.dataset.v; lsSet(LS_UI,S.ui); setSeg('langSeg',S.ui.lang); renderCallouts(); };
 
 /* ---------------- 戰術列表 ---------------- */
@@ -891,7 +931,7 @@ function openStrat(id){
   if(S.shared) exitShared();
   S.curId=id; S.ui.cur=id; lsSet(LS_UI,S.ui);
   S.selected=null; S.history=[]; S.future=[]; S.ruler=null;
-  renderAll(); renderStratList();
+  renderAll(); fitView(); renderStratList();
 }
 
 /* ---------------- 分享連結（唯讀） ---------------- */
@@ -925,7 +965,7 @@ function enterShared(st){
   if(S.editCallouts) toggleEditCallouts(false);
   setTool('select'); S.shared=st; S.selected=null; S.history=[]; S.future=[];
   document.body.classList.add('viewing'); $('shareText').textContent='👀 查看分享：'+st.name; $('stratName').readOnly=true;
-  renderAll(); setStatus('唯讀');
+  renderAll(); fitView(); setStatus('唯讀');
 }
 function exitShared(){
   if(!S.shared) return; S.shared=null; document.body.classList.remove('viewing'); $('stratName').readOnly=false;
@@ -1043,7 +1083,16 @@ async function boot(){
   setInterval(()=>{ if(document.visibilityState==='visible' && ghReady()) sync(); }, 90e3);
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && ghReady() && S.maps.length) sync(); });
-window.addEventListener('resize',()=>{ const v=S.view, ow=W, oh=H; resize(); v.tx+= (W-ow)/2; v.ty+=(H-oh)/2; applyView(); });
+// 畫面大小改變（視窗縮放、工具列換行等）時，保持地圖中心與相對比例
+function onStageResize(){
+  const r=svg.getBoundingClientRect(); if(!r.width||!r.height) return;
+  if(Math.abs(r.width-W)<1 && Math.abs(r.height-H)<1) return;
+  const v=S.view, ow=W, oh=H, ob=baseS;
+  if(!ow||!oh){ resize(); return; }
+  const cx=(ow/2-v.tx)/v.s, cy=(oh/2-v.ty)/v.s;   // 舊中心點（地圖座標）
+  resize(); const k=baseS/ob; v.s*=k; v.tx=W/2-cx*v.s; v.ty=H/2-cy*v.s; applyView();
+}
+if(window.ResizeObserver) new ResizeObserver(onStageResize).observe($('stage')); else window.addEventListener('resize',onStageResize);
 boot();
 </script>
 </body>
