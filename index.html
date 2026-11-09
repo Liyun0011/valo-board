@@ -282,7 +282,8 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
 <div id="scrim"></div>
 <aside id="stratPanel">
   <div class="ph"><h2>戰術</h2><button class="ibtn" id="closeStrats">✕</button></div>
-  <div style="padding:8px 12px 0"><div class="seg" id="scopeSeg" style="width:100%"><button data-v="all" style="flex:1">全部</button><button data-v="team" style="flex:1">👥 共同</button><button data-v="personal" style="flex:1">🔒 私人</button></div></div>
+  <div style="padding:8px 12px 0"><select id="listMap" style="width:100%;margin-bottom:6px"></select></div>
+  <div style="padding:0 12px"><div class="seg" id="scopeSeg" style="width:100%"><button data-v="all" style="flex:1">全部</button><button data-v="team" style="flex:1">👥 共同</button><button data-v="personal" style="flex:1">🔒 私人</button></div></div>
   <div id="stratList"></div>
   <div class="pf">
     <button class="tool primary" id="btnNew">＋ 新戰術</button>
@@ -1184,12 +1185,18 @@ $('zIn').onclick=()=>zoomAt(W/2,H/2,1.3); $('zOut').onclick=()=>zoomAt(W/2,H/2,1
 
 /* ---------------- 頂部列 ---------------- */
 $('stratName').addEventListener('input', e=>{ curStrat().name=e.target.value; markDirty(); renderStratList(); });
-$('mapSel').addEventListener('change', e=>{
-  const s=curStrat(), id=e.target.value;
-  if(!s.objects.length){ s.map=id; const m=S.mapById[id]; if(/｜新戰術$/.test(s.name)||!s.name) s.name=`${m.en}｜新戰術`; markDirty(); }
-  else { const n=newStrat(id, null, s.side, isTeam(s)?'team':'personal'); S.curId=n.id; markDirty(); toast('已為 '+S.mapById[id].en+' 建立新戰術'); }
-  openStrat(S.curId);
-});
+/* 切換地圖：打開那張地圖最近編輯的戰術；沒有的話才新建 */
+function switchMap(id){
+  const s=curStrat(), m=S.mapById[id]; if(!m || S.shared) return;
+  if(s && s.map===id){ renderStratList(); return; }
+  const sc=S.ui.listScope||'all';
+  const cands=liveStrats().filter(x=>x.map===id && (sc==='all' || (sc==='team')===isTeam(x)));
+  if(cands.length){ openStrat(cands[0].id); toast(`${m.tw||m.en}：已打開「${cands[0].name}」`); return; }
+  if(s && !s.objects.length && (/｜新戰術$/.test(s.name)||!s.name)){ s.map=id; s.name=`${m.en}｜新戰術`; markDirty(); openStrat(s.id); return; }
+  const scope = sc==='team' ? 'team' : sc==='personal' ? 'personal' : (isTeam(s)?'team':'personal');
+  const n=newStrat(id, null, s?.side, scope); S.curId=n.id; markDirty(); openStrat(n.id); toast(`${m.tw||m.en} 還沒有戰術，已新建一套`);
+}
+$('mapSel').addEventListener('change', e=>switchMap(e.target.value));
 $('sideSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; curStrat().side=b.dataset.v; markDirty(); renderAll(); fitView(); };
 $('langSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; S.ui.lang=b.dataset.v; lsSet(LS_UI,S.ui); setSeg('langSeg',S.ui.lang); renderCallouts(); };
 
@@ -1200,7 +1207,9 @@ function renderStratList(){
   const el=$('stratList'); if(!el) return;
   const sc=S.ui.listScope||'all';
   document.querySelectorAll('#scopeSeg button').forEach(b=>b.classList.toggle('on', b.dataset.v===sc));
-  let list=liveStrats().filter(s=> sc==='all' || (sc==='team')===isTeam(s));
+  const cm=curStrat()?.map, lm=$('listMap');
+  if(lm && S.maps.length){ lm.innerHTML='<option value="all">🗺 所有地圖</option>'+S.maps.map(m=>{ const n=liveStrats().filter(x=>x.map===m.id).length; return `<option value="${m.id}">${esc(m.tw||m.en)} ${esc(m.en)}${n?'（'+n+'）':''}</option>`; }).join(''); lm.value=S.ui.listAll?'all':(cm||'all'); }
+  let list=liveStrats().filter(s=> (sc==='all' || (sc==='team')===isTeam(s)) && (S.ui.listAll || s.map===cm));
   if(sc==='team' && !teamReady()){ el.innerHTML='<p style="color:var(--dim);font-size:13px;padding:8px;line-height:1.6">還沒連上隊伍共同戰術庫。到 ⚙ 設定 → 最下面的「🔒 個人設定」填寫隊伍資料後，就能和隊友一起編輯。</p>'; return; }
   const groups={};
   list.forEach(s=>{ (groups[s.map] ||= []).push(s); });
@@ -1209,7 +1218,7 @@ function renderStratList(){
     return `<div class="mg"><div class="mgh">${esc(m?m.tw+' '+m.en:'未知地圖')}<span>${groups[mid].length}</span></div>`+
       groups[mid].map(s=>`<div class="si${s.id===S.curId?' cur':''}" data-open="${s.id}"><span class="sc ${isTeam(s)?'team':''}" title="${isTeam(s)?'共同':'私人'}">${isTeam(s)?'👥':'🔒'}</span><div class="t"><b>${esc(s.name||'未命名')}</b><small>${s.side==='def'?'防守':'進攻'} · ${s.objects.length} 個物件 · ${new Date(s.updatedAt).toLocaleDateString('zh-TW')}${isTeam(s)&&s.editedBy?' · '+esc(s.editedBy):''}</small></div>
       <div class="act"><button data-move="${s.id}" title="${isTeam(s)?'移到私人':'移到共同'}">${isTeam(s)?'🔒':'👥'}</button><button data-dup="${s.id}" title="複製">⧉</button><button class="danger" data-del="${s.id}" title="刪除">🗑</button></div></div>`).join('')+'</div>';
-  }).join('') || '<p style="color:var(--dim);font-size:13px;padding:8px">還沒有戰術</p>';
+  }).join('') || '<p style="color:var(--dim);font-size:13px;padding:8px">'+(S.ui.listAll?'還沒有戰術':'這張地圖在這個分頁還沒有戰術，按下方「＋ 新戰術」建立。')+'</p>';
 }
 function storeOf(s){ return isTeam(s) ? S.team.strats : S.db.strats; }
 function moveStrat(id){
@@ -1224,6 +1233,7 @@ function moveStrat(id){
   });
 }
 $('scopeChip').onclick=()=>{ if(!S.shared) moveStrat(S.curId); };
+$('listMap').onchange=e=>{ const v=e.target.value; S.ui.listAll=(v==='all'); lsSet(LS_UI,S.ui); if(v!=='all') switchMap(v); renderStratList(); };
 $('scopeSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; S.ui.listScope=b.dataset.v; lsSet(LS_UI,S.ui); renderStratList(); };
 $('stratList').addEventListener('click', e=>{
   const dup=e.target.closest('[data-dup]'), del=e.target.closest('[data-del]'), op=e.target.closest('[data-open]'), mv=e.target.closest('[data-move]');
