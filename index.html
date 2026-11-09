@@ -75,6 +75,9 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .tool:disabled{opacity:.35}
 .sep{width:1px;height:28px;background:var(--line);flex-shrink:0;margin:0 2px}
 .agentsWrap{display:flex;gap:8px;align-items:center;padding:3px 0}
+.scrollBtn{display:none;width:28px;height:52px;border-radius:6px;background:var(--panel2);font-size:20px;font-weight:700;flex-shrink:0;color:var(--dim)}
+.scrollBtn:hover{background:#26384a;color:var(--text)}
+@media (hover:hover) and (pointer:fine){ .scrollBtn{display:block} }
 #roleSeg{flex-shrink:0;display:grid;grid-template-columns:1fr 1fr;gap:2px}
 #roleSeg button[data-role=all]{grid-column:span 2}
 #roleSeg button{height:22px;font-size:11px;padding:0 8px}
@@ -210,7 +213,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       <span class="spacer"></span>
       <button class="tool" id="btnDock" title="收合特務列，讓地圖更大">▾ 收合</button>
     </div>
-    <div class="agentsWrap"><div class="seg" id="roleSeg"></div><div class="row" id="agentRow"></div></div>
+    <div class="agentsWrap"><div class="seg" id="roleSeg"></div><button class="scrollBtn" data-scroll="-1" title="往左">‹</button><div class="row" id="agentRow"></div><button class="scrollBtn" data-scroll="1" title="往右">›</button></div>
     <div class="row" id="abilityRow"><span class="empty">先選一位特務 → 再選技能 → 點地圖放置</span></div>
   </footer>
 </div>
@@ -498,7 +501,7 @@ async function sync(manual){
       const merged = mergeDb(S.db, data);
       S.db = merged; lsSet(LS_DB, S.db);
       if(!S.db.strats[S.curId] || S.db.strats[S.curId].deleted){ const l=liveStrats(); S.curId = l[0]?.id || newStrat().id; }
-      if(stable(curStrat())!==before) renderAll();
+      if(stable(curStrat())!==before){ renderAll(); if(!S.userMoved) fitView(); }
       renderStratList(); renderCalib();
       if(!data || stable(merged)!==stable(mergeDb(emptyDb(),data))){
         try{ await ghPut(merged, sha); }catch(e){ if(e.conflict && attempt<2) continue; throw e; }
@@ -536,7 +539,7 @@ function contentBox(){
 function fitView(){
   resize(); const b=contentBox(), bw=b.x1-b.x0, bh=b.y1-b.y0;
   const s=Math.min(W/bw, H/bh)*0.97;
-  S.view={s, tx:W/2-(b.x0+bw/2)*s, ty:H/2-(b.y0+bh/2)*s}; applyView();
+  S.view={s, tx:W/2-(b.x0+bw/2)*s, ty:H/2-(b.y0+bh/2)*s}; S.userMoved=false; applyView();
 }
 function applyView(){
   const v=S.view; viewG.setAttribute('transform',`translate(${v.tx} ${v.ty}) scale(${v.s})`);
@@ -544,6 +547,7 @@ function applyView(){
   if(curStrat()) reqRender();
 }
 function zoomAt(px,py,k){
+  S.userMoved=true;
   const v=S.view, ns=Math.max(baseS*0.5, Math.min(baseS*8, v.s*k)); k=ns/v.s;
   v.tx = px-(px-v.tx)*k; v.ty = py-(py-v.ty)*k; v.s=ns; applyView();
 }
@@ -769,11 +773,12 @@ svg.addEventListener('pointermove', e=>{
     if(ptrs.size<2) return;
     const [a,b]=[...ptrs.values()], dist=Math.hypot(a.x-b.x,a.y-b.y), mid=toSvg((a.x+b.x)/2,(a.y+b.y)/2);
     let k=dist/d.d0; const ns=Math.max(baseS*0.5,Math.min(baseS*8,d.v0.s*k)); k=ns/d.v0.s;
-    S.view={s:ns, tx:mid.x-(d.m0.x-d.v0.tx)*k, ty:mid.y-(d.m0.y-d.v0.ty)*k}; applyView(); return;
+    S.view={s:ns, tx:mid.x-(d.m0.x-d.v0.tx)*k, ty:mid.y-(d.m0.y-d.v0.ty)*k}; S.userMoved=true; applyView(); return;
   }
   if(d.kind==='pan'){
     const p=toSvg(e.clientX,e.clientY), dx=p.x-d.p0.x, dy=p.y-d.p0.y;
     if(Math.hypot(dx,dy)>4) d.moved=true;
+    if(d.moved) S.userMoved=true;
     S.view.tx=d.v0.tx+dx; S.view.ty=d.v0.ty+dy; applyView(); return;
   }
   const w=toWorld(e.clientX,e.clientY), s=curStrat();
@@ -845,6 +850,10 @@ function renderAgents(){
     return (cur==='all'?`<span class="rlabel">${esc(tw(r))}</span>`:'')+list.map(btn).join('');
   }).join('');
 }
+document.querySelectorAll('#dock .row').forEach(r=>r.addEventListener('wheel',e=>{
+  if(Math.abs(e.deltaY)>Math.abs(e.deltaX) && r.scrollWidth>r.clientWidth){ e.preventDefault(); r.scrollLeft+=e.deltaY; }
+},{passive:false}));
+document.querySelectorAll('.scrollBtn').forEach(b=>b.onclick=()=>{ const r=$('agentRow'); r.scrollBy({left:+b.dataset.scroll*r.clientWidth*0.8, behavior:'smooth'}); });
 $('roleSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-role]'); if(!b) return; S.ui.role=b.dataset.role; lsSet(LS_UI,S.ui); renderAgents(); $('agentRow').scrollLeft=0; });
 function renderAbilities(){
   const a=S.agentById[S.selAgent], row=$('abilityRow');
@@ -1079,6 +1088,7 @@ async function boot(){
   fitView(); renderAgents(); renderAbilities(); openStrat(S.curId);
   setStatus(ghReady()?'☁ 準備同步…':'✓ 已儲存在此裝置');
   await checkHash();
+  if(document.fonts?.ready) document.fonts.ready.then(()=>{ if(!S.userMoved) fitView(); });
   if(ghReady()) sync();
   setInterval(()=>{ if(document.visibilityState==='visible' && ghReady()) sync(); }, 90e3);
 }
@@ -1089,6 +1099,7 @@ function onStageResize(){
   if(Math.abs(r.width-W)<1 && Math.abs(r.height-H)<1) return;
   const v=S.view, ow=W, oh=H, ob=baseS;
   if(!ow||!oh){ resize(); return; }
+  if(!S.userMoved && curMap()){ fitView(); return; }
   const cx=(ow/2-v.tx)/v.s, cy=(oh/2-v.ty)/v.s;   // 舊中心點（地圖座標）
   resize(); const k=baseS/ob; v.s*=k; v.tx=W/2-cx*v.s; v.ty=H/2-cy*v.s; applyView();
 }
