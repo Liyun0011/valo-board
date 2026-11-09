@@ -260,7 +260,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
 
 <div class="modal" id="confirmModal">
   <div class="card" style="width:min(380px,100%)">
-    <div class="cfm"><p id="cfmText"></p><div class="btns" style="justify-content:flex-end"><button class="tool" id="cfmNo">取消</button><button class="tool primary" id="cfmYes">確定</button></div></div>
+    <div class="cfm"><p id="cfmText"></p><div class="btns" id="cfmBtns" style="justify-content:flex-end"></div></div>
   </div>
 </div>
 
@@ -898,7 +898,7 @@ function openStrat(id){
 const b64u = bytes => { let bin=''; for(let i=0;i<bytes.length;i+=0x8000) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000)); return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
 const unb64u = s => Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c=>c.charCodeAt(0));
 async function packStrat(s){
-  const raw = new TextEncoder().encode(JSON.stringify({v:1,n:s.name,m:s.map,s:s.side,o:s.objects}));
+  const raw = new TextEncoder().encode(JSON.stringify({v:1,i:s.origin||s.id,n:s.name,m:s.map,s:s.side,o:s.objects}));
   if(window.CompressionStream){ try{ const buf=await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer(); return 'z'+b64u(new Uint8Array(buf)); }catch(e){} }
   return 'j'+b64u(raw);
 }
@@ -906,7 +906,7 @@ async function unpackStrat(code){
   let bytes=unb64u(code.slice(1));
   if(code[0]==='z') bytes=new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
   const d=JSON.parse(new TextDecoder().decode(bytes));
-  return {id:'shared', name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], updatedAt:Date.now()};
+  return {id:'shared', origin:d.i||null, name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], updatedAt:Date.now()};
 }
 $('btnShare').onclick=async()=>{
   const s=curStrat(); if(!s) return;
@@ -931,7 +931,22 @@ function exitShared(){
   if(!S.shared) return; S.shared=null; document.body.classList.remove('viewing'); $('stratName').readOnly=false;
   try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
 }
-$('shareSave').onclick=()=>{ const st=S.shared; exitShared(); const c=JSON.parse(JSON.stringify(st)); c.id=uid(); c.createdAt=c.updatedAt=Date.now(); S.db.strats[c.id]=c; persist(); openStrat(c.id); toast('已存到我的戰術'); };
+function saveSharedAsNew(){ const st=S.shared; exitShared(); const c=JSON.parse(JSON.stringify(st)); c.id=uid(); c.createdAt=c.updatedAt=Date.now(); S.db.strats[c.id]=c; persist(); openStrat(c.id); toast('已存成新的一份'); }
+function replaceWithShared(targetId){
+  const st=S.shared, t=S.db.strats[targetId]; exitShared();
+  const before=JSON.stringify(t.objects);
+  t.objects=JSON.parse(JSON.stringify(st.objects)); t.name=st.name; t.map=st.map; t.side=st.side; t.updatedAt=Date.now();
+  persist(); openStrat(t.id); pushHistory(before); toast('已取代原本的戰術（可按 ↶ 復原）');
+}
+$('shareSave').onclick=()=>{
+  const st=S.shared; if(!st) return;
+  const mine = st.origin && S.db.strats[st.origin] && !S.db.strats[st.origin].deleted ? S.db.strats[st.origin] : null;
+  if(!mine){ saveSharedAsNew(); return; }
+  askChoice(`這是你「${mine.name}」的修改版本。要怎麼存？`, [
+    {label:'存成新的一份', fn:saveSharedAsNew},
+    {label:'取代原本那套', primary:true, fn:()=>replaceWithShared(mine.id)}
+  ]);
+};
 $('shareClose').onclick=()=>{ exitShared(); openStrat(S.curId); setStatus('✓ 已儲存'); };
 window.addEventListener('hashchange',()=>{ if(S.maps.length) checkHash(); });
 
@@ -990,10 +1005,15 @@ $('calList').addEventListener('change', e=>{
   persist(); renderCalib(); renderObjects(); renderAbilities();
 });
 $('calList').addEventListener('click', e=>{ const b=e.target.closest('[data-calreset]'); if(!b) return; S.db.calib[b.dataset.calreset]={v:{},updatedAt:Date.now()}; persist(); renderCalib(); renderObjects(); renderAbilities(); });
-let cfmCb=null;
-function askConfirm(t,cb){ $('cfmText').textContent=t; cfmCb=cb; showModal('confirmModal',true); }
-$('cfmYes').onclick=()=>{ showModal('confirmModal',false); const c=cfmCb; cfmCb=null; c&&c(); };
-$('cfmNo').onclick=()=>{ showModal('confirmModal',false); cfmCb=null; };
+/* 對話框：buttons = [{label, primary, fn}]，最後自動加「取消」 */
+function askChoice(t, buttons){
+  $('cfmText').textContent=t; const box=$('cfmBtns'); box.innerHTML='';
+  const all=[{label:'取消'}].concat(buttons);
+  all.forEach(b=>{ const el=document.createElement('button'); el.className='tool'+(b.primary?' primary':''); el.textContent=b.label;
+    el.onclick=()=>{ showModal('confirmModal',false); b.fn&&b.fn(); }; box.appendChild(el); });
+  showModal('confirmModal',true);
+}
+function askConfirm(t,cb){ askChoice(t,[{label:'確定',primary:true,fn:cb}]); }
 
 /* ---------------- 啟動 ---------------- */
 async function boot(){
