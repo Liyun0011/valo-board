@@ -146,6 +146,10 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .ph{display:flex;align-items:center;gap:8px;padding:12px;border-bottom:1px solid var(--line)}
 .ph h2{margin:0;font-size:16px;flex:1}
 #stratList{flex:1;overflow-y:auto;padding:8px}
+.mg{margin-bottom:10px}
+.mgh{font-size:12px;font-weight:700;color:var(--dim);padding:4px 4px 6px;display:flex;justify-content:space-between;letter-spacing:.05em}
+.mgh span{font-weight:400}
+.sc{font-size:14px;flex-shrink:0}
 .si{display:flex;align-items:center;gap:8px;padding:10px;border-radius:8px;cursor:pointer;margin-bottom:4px;background:var(--panel2)}
 .si.cur{outline:2px solid var(--red)}
 .si .t{flex:1;min-width:0}
@@ -197,6 +201,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
   <header id="topbar">
     <button class="ibtn" id="btnStrats" title="戰術列表">☰</button>
     <span class="brand">VALO 戰術板</span>
+    <span id="scopeChip" title="這套戰術存放的位置" style="font-size:12px;padding:3px 8px;border-radius:999px;background:var(--panel2);white-space:nowrap;cursor:pointer"></span>
     <input id="stratName" placeholder="戰術名稱" maxlength="60">
     <span id="saveStatus"></span>
     <span class="spacer"></span>
@@ -276,7 +281,8 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
 
 <div id="scrim"></div>
 <aside id="stratPanel">
-  <div class="ph"><h2>我的戰術</h2><button class="ibtn" id="closeStrats">✕</button></div>
+  <div class="ph"><h2>戰術</h2><button class="ibtn" id="closeStrats">✕</button></div>
+  <div style="padding:8px 12px 0"><div class="seg" id="scopeSeg" style="width:100%"><button data-v="all" style="flex:1">全部</button><button data-v="team" style="flex:1">👥 共同</button><button data-v="personal" style="flex:1">🔒 私人</button></div></div>
   <div id="stratList"></div>
   <div class="pf">
     <button class="tool primary" id="btnNew">＋ 新戰術</button>
@@ -330,6 +336,17 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
           <button class="tool" id="ghForget">移除此裝置的權杖</button>
         </div>
         <div id="syncMsg"></div>
+        <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 12px">
+        <h3 style="margin:0 0 6px;font-size:14px">👥 隊伍共同戰術庫</h3>
+        <p>連上隊伍的共同儲存庫後，放在「共同」的戰術隊友都能看到、一起修改（約每 30 秒同步一次）。這裡要用<b>另一把</b>專門給隊伍儲存庫的權杖。</p>
+        <div class="field"><label>你的名字（顯示給隊友看是誰改的）</label><input id="nickName" maxlength="20" placeholder="例如 Liyun"></div>
+        <div class="grid2">
+          <div class="field"><label>組織名稱</label><input id="ghtOwner" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="例如 valo-team"></div>
+          <div class="field"><label>共同儲存庫名稱</label><input id="ghtRepo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="team-strats"></div>
+        </div>
+        <div class="field"><label>隊伍權杖（Fine-grained token）</label><input id="ghtToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="github_pat_…"></div>
+        <div class="btns"><button class="tool primary" id="ghtSave">儲存並連線</button><button class="tool" id="ghtForget">中斷隊伍連線</button></div>
+        <div id="teamMsg" style="font-size:12px;margin-top:6px;color:var(--dim);white-space:pre-wrap"></div>
       </div>
       </details>
       <div class="sec">
@@ -447,6 +464,7 @@ const SLOT_ORDER = ['Grenade','Ability1','Ability2','Ultimate'];
 const SLOT_KEY = {Grenade:'C',Ability1:'Q',Ability2:'E',Ultimate:'X'};
 
 const API = 'https://valorant-api.com/v1';
+const LS_TEAM='vp_team_v1', LS_GHT='vp_github_team_v1';
 const LS_DB='vp_db_v1', LS_GH='vp_github_v1', LS_UI='vp_ui_v1', LS_CACHE='vp_gamecache_v4';
 const $ = id => document.getElementById(id);
 const svg = $('board'), viewG=$('viewG'), worldG=$('worldG');
@@ -501,7 +519,9 @@ async function loadGameData(){
 }
 
 /* ---------------- 地圖幾何 ---------------- */
-function curStrat(){ return S.shared || S.db.strats[S.curId]; }
+function stratById(id){ const a=S.db.strats[id], b=S.team?.strats[id]; return (a&&!a.deleted)?a : (b&&!b.deleted)?b : (a||b); }
+function isTeam(s){ return !!s && s.scope==='team'; }
+function curStrat(){ return S.shared || stratById(S.curId); }
 function curMap(){ const s=curStrat(); return s && (S.mapById[s.map] || S.maps[0]); }
 function proj(m, wx, wy){ return {x:(wy*m.xm + m.xa)*1000, y:(wx*m.ym + m.ya)*1000}; }
 function ppm(m){ return 1000*100*(Math.abs(m.xm)+Math.abs(m.ym))/2; } // 每公尺 = 多少畫面單位（1 公尺 = 100 遊戲單位）
@@ -530,19 +550,21 @@ function loadDb(){
   d.strats ||= {}; d.calib ||= {}; d.mapRot ||= {}; d.calloutPos ||= {}; d.mapImg ||= {};
   S.db = d;
 }
-function liveStrats(){ return Object.values(S.db.strats).filter(s=>!s.deleted).sort((a,b)=>b.updatedAt-a.updatedAt); }
-function newStrat(mapId, name, side){
+function liveStrats(){ return Object.values(S.db.strats).concat(Object.values(S.team?.strats||{})).filter(s=>!s.deleted).sort((a,b)=>b.updatedAt-a.updatedAt); }
+function newStrat(mapId, name, side, scope){
   const m = S.mapById[mapId] || S.maps.find(x=>x.en==='Ascent') || S.maps[0];
   const s = {id:uid(), name: name || `${m.en}｜新戰術`, map:m.id, side: side||'atk', objects:[], createdAt:Date.now(), updatedAt:Date.now()};
-  S.db.strats[s.id]=s; return s;
+  if(scope==='team' && teamReady()){ s.scope='team'; s.editedBy=S.ui.nick||''; S.team.strats[s.id]=s; } else S.db.strats[s.id]=s;
+  return s;
 }
 let saveTimer=null;
 function markDirty(){
   if(S.shared) return;
-  const s=curStrat(); if(s) s.updatedAt=Date.now();
+  const s=curStrat(); if(s){ s.updatedAt=Date.now(); if(isTeam(s)) s.editedBy=S.ui.nick||''; }
   persist();
 }
 function persist(){
+  lsSet(LS_TEAM, S.team); scheduleTeamSync();
   const ok = lsSet(LS_DB, S.db);
   setStatus(ok ? '✓ 已儲存' : '⚠ 無法存到此裝置', !ok);
   scheduleSync();
@@ -556,15 +578,15 @@ const ghReady = () => !!(GH.owner && GH.repo && GH.token);
 function scheduleSync(delay=2500){ if(!ghReady()) return; clearTimeout(syncTimer); syncTimer=setTimeout(sync, delay); }
 const b64enc = s => { const b=new TextEncoder().encode(s); let bin=''; for(let i=0;i<b.length;i+=0x8000) bin+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(bin); };
 const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,'')),c=>c.charCodeAt(0)));
-function ghUrl(){ return `https://api.github.com/repos/${encodeURIComponent(GH.owner)}/${encodeURIComponent(GH.repo)}/contents/${GH.path}`; }
-function ghHeaders(){ return {'Authorization':'Bearer '+GH.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
-async function ghGet(){
-  const r = await fetch(ghUrl()+'?ref='+encodeURIComponent(GH.branch)+'&t='+Date.now(), {headers:ghHeaders(), cache:'no-store'});
+function ghUrl(c=GH){ return `https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${c.path}`; }
+function ghHeaders(c=GH){ return {'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
+async function ghGet(c=GH){
+  const r = await fetch(ghUrl(c)+'?ref='+encodeURIComponent(c.branch)+'&t='+Date.now(), {headers:ghHeaders(c), cache:'no-store'});
   if(r.status===404){
-    const rr = await fetch(`https://api.github.com/repos/${encodeURIComponent(GH.owner)}/${encodeURIComponent(GH.repo)}`, {headers:ghHeaders(), cache:'no-store'});
+    const rr = await fetch(`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`, {headers:ghHeaders(c), cache:'no-store'});
     if(rr.status===404) throw new Error('找不到儲存庫，或權杖沒有這個儲存庫的權限');
     if(!rr.ok) throw new Error('GitHub 回應 '+rr.status);
-    const info = await rr.json(); if(info.default_branch && info.default_branch!==GH.branch){ GH.branch=info.default_branch; lsSet(LS_GH,GH); }
+    const info = await rr.json(); if(info.default_branch && info.default_branch!==c.branch){ c.branch=info.default_branch; lsSet(c===GH?LS_GH:LS_GHT,c); }
     return {data:null, sha:null};
   }
   if(r.status===401) throw new Error('權杖無效或已過期（401）');
@@ -573,10 +595,10 @@ async function ghGet(){
   const j = await r.json();
   return {data: JSON.parse(b64dec(j.content)), sha:j.sha};
 }
-async function ghPut(obj, sha){
-  const body = {message:'更新戰術 '+new Date().toLocaleString('zh-TW'), content:b64enc(JSON.stringify(obj,null,1)), branch:GH.branch};
+async function ghPut(obj, sha, c=GH){
+  const body = {message:'更新戰術 '+new Date().toLocaleString('zh-TW')+(c===GHT&&S.ui.nick?'（'+S.ui.nick+'）':''), content:b64enc(JSON.stringify(obj,null,1)), branch:c.branch};
   if(sha) body.sha = sha;
-  const r = await fetch(ghUrl(), {method:'PUT', headers:Object.assign({'Content-Type':'application/json'},ghHeaders()), body:JSON.stringify(body)});
+  const r = await fetch(ghUrl(c), {method:'PUT', headers:Object.assign({'Content-Type':'application/json'},ghHeaders(c)), body:JSON.stringify(body)});
   if(r.status===409 || r.status===422){ const e=new Error('conflict'); e.conflict=true; throw e; }
   if(r.status===403||r.status===404) throw new Error('無法寫入（'+r.status+'）：權杖需要 Contents「Read and write」權限');
   if(!r.ok) throw new Error('GitHub 寫入失敗 '+r.status);
@@ -605,7 +627,7 @@ async function sync(manual){
       const before = stable(curStrat()||null);
       const merged = mergeDb(S.db, data);
       S.db = merged; lsSet(LS_DB, S.db);
-      if(!S.db.strats[S.curId] || S.db.strats[S.curId].deleted){ const l=liveStrats(); S.curId = l[0]?.id || newStrat().id; }
+      if(S.booted && (!stratById(S.curId) || stratById(S.curId).deleted)){ const l=liveStrats(); S.curId = l[0]?.id || newStrat().id; openStrat(S.curId); }
       if(stable(curStrat())!==before){ renderAll(); if(!S.userMoved) fitView(); }
       renderStratList(); renderCalib();
       if(!data || stable(merged)!==stable(mergeDb(emptyDb(),data))){
@@ -622,6 +644,46 @@ async function sync(manual){
   }finally{
     syncing=false;
     if(syncAgain){ syncAgain=false; scheduleSync(500); }
+  }
+}
+
+/* ---------------- 隊伍共同戰術庫 ---------------- */
+const GHT = Object.assign({owner:'',repo:'',token:'',branch:'main',path:'team-strats.json'}, lsGet(LS_GHT,{}));
+const teamReady = () => !!(GHT.owner && GHT.repo && GHT.token);
+S.team = lsGet(LS_TEAM,null) || {version:1, strats:{}}; S.team.strats ||= {};
+let tSyncTimer=null, tSyncing=false, tSyncAgain=false;
+function scheduleTeamSync(delay=2000){ if(!teamReady()) return; clearTimeout(tSyncTimer); tSyncTimer=setTimeout(teamSync, delay); }
+async function teamSync(manual){
+  if(!teamReady()) return;
+  if(S.drag){ scheduleTeamSync(800); return; }
+  if(tSyncing){ tSyncAgain=true; return; }
+  tSyncing=true;
+  try{
+    for(let attempt=0; attempt<3; attempt++){
+      const {data, sha} = await ghGet(GHT);
+      const before = stable(curStrat()||null);
+      const remote = data && data.strats ? data : {version:1, strats:{}};
+      const merged = {version:1, strats:mergeMaps(S.team.strats, remote.strats)};
+      Object.values(merged.strats).forEach(x=>{ if(x) x.scope='team'; });
+      S.team = merged; lsSet(LS_TEAM, S.team);
+      if(S.booted && (!stratById(S.curId) || stratById(S.curId).deleted)){ const l=liveStrats(); S.curId = l[0]?.id || newStrat().id; openStrat(S.curId); }
+      if(stable(curStrat())!==before && !S.shared){ renderAll(); }
+      renderStratList();
+      if(!data || stable(merged)!==stable({version:1, strats:remote.strats})){
+        try{ await ghPut(merged, sha, GHT); }catch(e){ if(e.conflict && attempt<2) continue; throw e; }
+      }
+      break;
+    }
+    const t=new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+    if(manual) $('teamMsg').textContent='✓ 已連上隊伍共同戰術庫（'+t+'）';
+    S.teamErr=null;
+  }catch(e){
+    S.teamErr=e.message||String(e);
+    $('teamMsg').textContent='✗ '+S.teamErr+(e instanceof TypeError?'（可能是網路問題）':'');
+    if(isTeam(curStrat())) setStatus('⚠ 共同戰術同步失敗（已存在此裝置）', true);
+  }finally{
+    tSyncing=false;
+    if(tSyncAgain){ tSyncAgain=false; scheduleTeamSync(500); }
   }
 }
 
@@ -669,7 +731,7 @@ function toSvg(cx,cy){ const r=svg.getBoundingClientRect(); return {x:cx-r.left,
 /* ---------------- 繪製 ---------------- */
 function renderAll(){
   const s=curStrat(), m=curMap(); if(!s||!m) return;
-  $('stratName').value = s.name;
+  $('stratName').value = s.name; $('scopeChip').textContent = S.shared?'👀 分享':(isTeam(s)?'👥 共同':'🔒 私人'); $('scopeChip').style.color = isTeam(s)?'var(--ally)':'var(--dim)';
   $('mapSel').value = m.id; $('mapSel').disabled = !!S.shared;
   setSeg('sideSeg', s.side); setSeg('langSeg', S.ui.lang); setSeg('teamSeg', S.ui.team);
   const tb=$('teamSeg').querySelectorAll('button'); const me=s.side==='def'?['防守','守']:['進攻','攻'], en=s.side==='def'?['進攻','攻']:['防守','守'];
@@ -1125,7 +1187,7 @@ $('stratName').addEventListener('input', e=>{ curStrat().name=e.target.value; ma
 $('mapSel').addEventListener('change', e=>{
   const s=curStrat(), id=e.target.value;
   if(!s.objects.length){ s.map=id; const m=S.mapById[id]; if(/｜新戰術$/.test(s.name)||!s.name) s.name=`${m.en}｜新戰術`; markDirty(); }
-  else { const n=newStrat(id, null, s.side); S.curId=n.id; markDirty(); toast('已為 '+S.mapById[id].en+' 建立新戰術'); }
+  else { const n=newStrat(id, null, s.side, isTeam(s)?'team':'personal'); S.curId=n.id; markDirty(); toast('已為 '+S.mapById[id].en+' 建立新戰術'); }
   openStrat(S.curId);
 });
 $('sideSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; curStrat().side=b.dataset.v; markDirty(); renderAll(); fitView(); };
@@ -1136,19 +1198,42 @@ function openPanel(o){ $('stratPanel').classList.toggle('open',o); $('scrim').cl
 $('btnStrats').onclick=()=>openPanel(true); $('closeStrats').onclick=()=>openPanel(false); $('scrim').onclick=()=>openPanel(false);
 function renderStratList(){
   const el=$('stratList'); if(!el) return;
-  const list=liveStrats();
-  el.innerHTML = list.map(s=>{ const m=S.mapById[s.map];
-    return `<div class="si${s.id===S.curId?' cur':''}" data-open="${s.id}"><div class="t"><b>${esc(s.name||'未命名')}</b><small>${esc(m?m.en+' '+m.tw:'?')} · ${s.side==='def'?'防守':'進攻'} · ${s.objects.length} 個物件 · ${new Date(s.updatedAt).toLocaleDateString('zh-TW')}</small></div>
-    <div class="act"><button data-dup="${s.id}" title="複製">⧉</button><button class="danger" data-del="${s.id}" title="刪除">🗑</button></div></div>`; }).join('') || '<p style="color:var(--dim);font-size:13px;padding:8px">還沒有戰術</p>';
+  const sc=S.ui.listScope||'all';
+  document.querySelectorAll('#scopeSeg button').forEach(b=>b.classList.toggle('on', b.dataset.v===sc));
+  let list=liveStrats().filter(s=> sc==='all' || (sc==='team')===isTeam(s));
+  if(sc==='team' && !teamReady()){ el.innerHTML='<p style="color:var(--dim);font-size:13px;padding:8px;line-height:1.6">還沒連上隊伍共同戰術庫。到 ⚙ 設定 → 最下面的「🔒 個人設定」填寫隊伍資料後，就能和隊友一起編輯。</p>'; return; }
+  const groups={};
+  list.forEach(s=>{ (groups[s.map] ||= []).push(s); });
+  const order=Object.keys(groups).sort((a,b)=>(S.mapById[a]?.en||'').localeCompare(S.mapById[b]?.en||''));
+  el.innerHTML = order.map(mid=>{ const m=S.mapById[mid];
+    return `<div class="mg"><div class="mgh">${esc(m?m.tw+' '+m.en:'未知地圖')}<span>${groups[mid].length}</span></div>`+
+      groups[mid].map(s=>`<div class="si${s.id===S.curId?' cur':''}" data-open="${s.id}"><span class="sc ${isTeam(s)?'team':''}" title="${isTeam(s)?'共同':'私人'}">${isTeam(s)?'👥':'🔒'}</span><div class="t"><b>${esc(s.name||'未命名')}</b><small>${s.side==='def'?'防守':'進攻'} · ${s.objects.length} 個物件 · ${new Date(s.updatedAt).toLocaleDateString('zh-TW')}${isTeam(s)&&s.editedBy?' · '+esc(s.editedBy):''}</small></div>
+      <div class="act"><button data-move="${s.id}" title="${isTeam(s)?'移到私人':'移到共同'}">${isTeam(s)?'🔒':'👥'}</button><button data-dup="${s.id}" title="複製">⧉</button><button class="danger" data-del="${s.id}" title="刪除">🗑</button></div></div>`).join('')+'</div>';
+  }).join('') || '<p style="color:var(--dim);font-size:13px;padding:8px">還沒有戰術</p>';
 }
+function storeOf(s){ return isTeam(s) ? S.team.strats : S.db.strats; }
+function moveStrat(id){
+  const s=stratById(id); if(!s) return;
+  const toTeam=!isTeam(s);
+  if(toTeam && !teamReady()){ toast('請先在設定連上隊伍共同戰術庫'); return; }
+  askConfirm(toTeam?`把「${s.name}」移到共同戰術庫？隊友都能看到和修改。`:`把「${s.name}」移回私人？隊友將看不到。`, ()=>{
+    const c=JSON.parse(JSON.stringify(s)), now=Date.now();
+    storeOf(s)[id]={id, deleted:true, objects:[], scope:s.scope, updatedAt:now};
+    if(toTeam){ c.scope='team'; c.editedBy=S.ui.nick||''; c.updatedAt=now+1; S.team.strats[id]=c; } else { delete c.scope; delete c.editedBy; c.updatedAt=now+1; S.db.strats[id]=c; }
+    persist(); renderStratList(); if(S.curId===id) renderAll(); toast(toTeam?'已移到共同戰術庫':'已移回私人');
+  });
+}
+$('scopeChip').onclick=()=>{ if(!S.shared) moveStrat(S.curId); };
+$('scopeSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; S.ui.listScope=b.dataset.v; lsSet(LS_UI,S.ui); renderStratList(); };
 $('stratList').addEventListener('click', e=>{
-  const dup=e.target.closest('[data-dup]'), del=e.target.closest('[data-del]'), op=e.target.closest('[data-open]');
-  if(dup){ const s=S.db.strats[dup.dataset.dup]; const c=JSON.parse(JSON.stringify(s)); c.id=uid(); c.name=s.name+'（複本）'; c.createdAt=c.updatedAt=Date.now(); S.db.strats[c.id]=c; persist(); renderStratList(); return; }
-  if(del){ const s=S.db.strats[del.dataset.del]; askConfirm(`刪除「${s.name}」？此動作會同步到其他裝置。`, ()=>{ s.deleted=true; s.objects=[]; s.updatedAt=Date.now();
+  const dup=e.target.closest('[data-dup]'), del=e.target.closest('[data-del]'), op=e.target.closest('[data-open]'), mv=e.target.closest('[data-move]');
+  if(mv){ moveStrat(mv.dataset.move); return; }
+  if(dup){ const s=stratById(dup.dataset.dup); const c=JSON.parse(JSON.stringify(s)); c.id=uid(); c.name=s.name+'（複本）'; c.createdAt=c.updatedAt=Date.now(); storeOf(s)[c.id]=c; persist(); renderStratList(); return; }
+  if(del){ const s=stratById(del.dataset.del); askConfirm(`刪除「${s.name}」？${isTeam(s)?'這是共同戰術，隊友那邊也會一起刪除。':'此動作會同步到其他裝置。'}`, ()=>{ s.deleted=true; s.objects=[]; s.updatedAt=Date.now();
       if(s.id===S.curId){ const l=liveStrats(); S.curId=(l[0]||newStrat()).id; openStrat(S.curId); } persist(); renderStratList(); }); return; }
   if(op){ openStrat(op.dataset.open); openPanel(false); }
 });
-$('btnNew').onclick=()=>{ const s=curStrat(); const n=newStrat(s?.map, null, s?.side); S.curId=n.id; persist(); openStrat(n.id); openPanel(false); setTimeout(()=>{ $('stratName').focus(); $('stratName').select(); },250); };
+$('btnNew').onclick=()=>{ const s=curStrat(); if((S.ui.listScope)==='team' && !teamReady()){ toast('請先在設定連上隊伍共同戰術庫'); return; } const n=newStrat(s?.map, null, s?.side, S.ui.listScope==='team'?'team':'personal'); S.curId=n.id; persist(); openStrat(n.id); openPanel(false); setTimeout(()=>{ $('stratName').focus(); $('stratName').select(); },250); };
 function openStrat(id){
   if(S.shared) exitShared();
   S.curId=id; S.ui.cur=id; lsSet(LS_UI,S.ui);
@@ -1329,14 +1414,14 @@ function exitShared(){
 }
 function saveSharedAsNew(){ const st=S.shared; exitShared(); const c=JSON.parse(JSON.stringify(st)); c.id=uid(); c.createdAt=c.updatedAt=Date.now(); S.db.strats[c.id]=c; persist(); openStrat(c.id); toast('已存成新的一份'); }
 function replaceWithShared(targetId){
-  const st=S.shared, t=S.db.strats[targetId]; exitShared();
+  const st=S.shared, t=stratById(targetId); exitShared();
   const before=JSON.stringify(t.objects);
   t.objects=JSON.parse(JSON.stringify(st.objects)); t.colors=Object.assign({},st.colors); t.name=st.name; t.map=st.map; t.side=st.side; t.updatedAt=Date.now();
   persist(); openStrat(t.id); pushHistory(before); toast('已取代原本的戰術（可按 ↶ 復原）');
 }
 $('shareSave').onclick=()=>{
   const st=S.shared; if(!st) return;
-  const mine = st.origin && S.db.strats[st.origin] && !S.db.strats[st.origin].deleted ? S.db.strats[st.origin] : null;
+  const mine = st.origin && stratById(st.origin) && !stratById(st.origin).deleted ? stratById(st.origin) : null;
   if(!mine){ saveSharedAsNew(); return; }
   askChoice(`這是你「${mine.name}」的修改版本。要怎麼存？`, [
     {label:'存成新的一份', fn:saveSharedAsNew},
@@ -1368,7 +1453,7 @@ $('importFile').onchange=async e=>{
 /* ---------------- 設定 ---------------- */
 function showModal(id,o){ $(id).classList.toggle('show',o); }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m||e.target.closest('[data-close]')) showModal(m.id,false); }));
-$('btnSettings').onclick=()=>{ $('syncSummary').textContent = ghReady()?('已連線 '+GH.owner+'/'+GH.repo):'尚未設定'; if(!ghReady()) $('personalSec').open=true; const gv=lsGet(LS_CACHE,null)?.ver; if(gv) $('gameVer').textContent='目前地圖資料版本：'+gv+'。遊戲版本一更新，網站會自動重新下載；如果地圖看起來還是舊的，可以手動重新下載。'; $('ghOwner').value=GH.owner; $('ghRepo').value=GH.repo; $('ghToken').value=GH.token?'••••••••':''; renderCalib(); showModal('settingsModal',true);
+$('btnSettings').onclick=()=>{ $('ghtOwner').value=GHT.owner; $('ghtRepo').value=GHT.repo; $('ghtToken').value=GHT.token?'••••••••':''; $('nickName').value=S.ui.nick||''; if(teamReady()&&!S.teamErr) $('teamMsg').textContent='目前連線：'+GHT.owner+'/'+GHT.repo; $('syncSummary').textContent = (ghReady()?'私人：'+GH.repo:'私人：未設定')+'｜'+(teamReady()?'隊伍：'+GHT.owner:'隊伍：未設定'); if(!ghReady()) $('personalSec').open=true; const gv=lsGet(LS_CACHE,null)?.ver; if(gv) $('gameVer').textContent='目前地圖資料版本：'+gv+'。遊戲版本一更新，網站會自動重新下載；如果地圖看起來還是舊的，可以手動重新下載。'; $('ghOwner').value=GH.owner; $('ghRepo').value=GH.repo; $('ghToken').value=GH.token?'••••••••':''; renderCalib(); showModal('settingsModal',true);
   $('syncMsg').textContent = ghReady()?`目前連線：${GH.owner}/${GH.repo}`:'尚未設定，戰術目前只存在這台裝置。'; };
 $('ghSave').onclick=()=>{
   GH.owner=$('ghOwner').value.trim(); GH.repo=$('ghRepo').value.trim();
@@ -1377,6 +1462,14 @@ $('ghSave').onclick=()=>{
   lsSet(LS_GH,GH); $('ghToken').value='••••••••'; $('syncMsg').textContent='連線中…'; sync(true);
 };
 $('ghSyncNow').onclick=()=>{ if(!ghReady()){ $('syncMsg').textContent='請先填寫並儲存'; return; } $('syncMsg').textContent='同步中…'; sync(true); };
+$('nickName').addEventListener('change',e=>{ S.ui.nick=e.target.value.trim(); lsSet(LS_UI,S.ui); });
+$('ghtSave').onclick=()=>{
+  GHT.owner=$('ghtOwner').value.trim(); GHT.repo=$('ghtRepo').value.trim();
+  const t=$('ghtToken').value.trim(); if(t && !/^•+$/.test(t)) GHT.token=t;
+  if(!teamReady()){ $('teamMsg').textContent='請填完組織名稱、儲存庫名稱和權杖'; return; }
+  lsSet(LS_GHT,GHT); $('ghtToken').value='••••••••'; $('teamMsg').textContent='連線中…'; teamSync(true).then(()=>{ S.ui.listScope='team'; lsSet(LS_UI,S.ui); renderStratList(); });
+};
+$('ghtForget').onclick=()=>{ GHT.token=''; lsSet(LS_GHT,GHT); $('ghtToken').value=''; $('teamMsg').textContent='已中斷（共同戰術的本機副本仍保留在這台裝置）'; renderStratList(); };
 $('ghForget').onclick=()=>{ GH.token=''; lsSet(LS_GH,GH); $('ghToken').value=''; $('syncMsg').textContent='已從這台裝置移除權杖（戰術仍保留在此裝置）'; setStatus('✓ 已儲存'); };
 $('btnReloadData').onclick=()=>{ try{ localStorage.removeItem(LS_CACHE); }catch(e){} location.reload(); };
 $('rotFix').onclick=()=>{ const m=curMap(); const cur=(S.db.mapRot[m.id]?.rot)||0; S.db.mapRot[m.id]={rot:(cur+90)%360, updatedAt:Date.now()}; persist(); renderAll(); };
@@ -1442,23 +1535,26 @@ async function boot(){
   S.maps=gd.maps; S.agents=gd.agents;
   S.mapById=Object.fromEntries(S.maps.map(m=>[m.id,m])); S.agentById=Object.fromEntries(S.agents.map(a=>[a.id,a]));
   $('mapSel').innerHTML=S.maps.map(m=>`<option value="${m.id}">${esc(m.en)}${m.tw&&m.tw!==m.en?' '+esc(m.tw):''}</option>`).join('');
+  if(teamReady()){ try{ await teamSync(); }catch(e){} }
   // 新裝置：先從雲端拉資料，避免多出一套空白戰術
   if(!liveStrats().length && ghReady()){
     $('loading').innerHTML='<b>從雲端讀取戰術中…</b>';
     try{ const {data}=await ghGet(); if(data){ S.db=mergeDb(S.db,data); lsSet(LS_DB,S.db); } }catch(e){ console.warn(e); }
   }
   const list=liveStrats();
-  S.curId = (S.ui.cur && S.db.strats[S.ui.cur] && !S.db.strats[S.ui.cur].deleted) ? S.ui.cur : (list[0]?.id || newStrat().id);
+  S.curId = (S.ui.cur && stratById(S.ui.cur) && !stratById(S.ui.cur).deleted) ? S.ui.cur : (list[0]?.id || newStrat().id);
   if(!list.length) lsSet(LS_DB,S.db);
   $('loading').style.display='none';
   fitView(); renderAgents(); renderAbilities(); openStrat(S.curId);
+  S.booted=true;
   setStatus(ghReady()?'☁ 準備同步…':'✓ 已儲存在此裝置');
   await checkHash();
   if(document.fonts?.ready) document.fonts.ready.then(()=>{ if(!S.userMoved) fitView(); });
   if(ghReady()) sync();
   setInterval(()=>{ if(document.visibilityState==='visible' && ghReady()) sync(); }, 90e3);
+  setInterval(()=>{ if(document.visibilityState==='visible' && teamReady()) teamSync(); }, 30e3);
 }
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && ghReady() && S.maps.length) sync(); });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && S.maps.length){ if(ghReady()) sync(); if(teamReady()) teamSync(); } });
 // 畫面大小改變（視窗縮放、工具列換行等）時，保持地圖中心與相對比例
 function onStageResize(){
   const r=svg.getBoundingClientRect(); if(!r.width||!r.height) return;
