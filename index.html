@@ -52,6 +52,8 @@ body.viewing #shareBanner{display:flex}
 body.viewing #dock{display:none}
 body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .callouts.edit text{pointer-events:auto;cursor:move;fill:#ffd36b}
+.callouts text[data-ccustom]{fill:#bfe9ff}
+.callouts.edit text[data-ccustom]{fill:#7fd4ff}
 .obj{cursor:grab}
 #overlay{position:absolute;inset:0;pointer-events:none}
 #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--dim);font-size:14px;text-align:center;padding:20px;pointer-events:auto;background:var(--bg)}
@@ -689,7 +691,26 @@ function renderCallouts(){
     const p=calloutXY(m,i);
     const t = calloutLabel(m,i);
     return `<text data-callout="${i}" transform="translate(${r1(p.x)} ${r1(p.y)}) rotate(${-R})">${esc(t.trim())}</text>`;
+  }).join('') + Object.entries(S.db.calloutPos[m.id]?.custom||{}).map(([id,c])=>{
+    const t = S.ui.lang==='en' ? (c.en||c.zh) : (c.zh||c.en);
+    return `<text data-ccustom="${esc(id)}" transform="translate(${r1(c.x)} ${r1(c.y)}) rotate(${-R})">${esc(t||'')}</text>`;
   }).join('');
+}
+function customCallouts(m){ const e0=S.db.calloutPos[m.id] || {pos:{}}; S.db.calloutPos[m.id]=e0; e0.custom=Object.assign({}, e0.custom); return e0; }
+function addCustomCallout(w){
+  const m=curMap(), lang=S.ui.lang==='en'?'en':'zh';
+  askText('新增地名', '', '', val=>{ val=(val||'').trim().slice(0,30); if(!val) return;
+    const e0=customCallouts(m), id='c'+uid(); e0.custom[id]={x:r1(w.x), y:r1(w.y), [lang]:val}; e0.updatedAt=Date.now(); persist(); renderCallouts(); },
+    {hideDefault:true, resetLabel:null});
+}
+function editCustomCallout(id){
+  const m=curMap(), lang=S.ui.lang==='en'?'en':'zh', c=S.db.calloutPos[m.id]?.custom?.[id]; if(!c) return;
+  askText(`修改自訂地名（${lang==='en'?'英文':'中文'}）`, c[lang]||c.zh||c.en||'', '', val=>{
+    const e0=customCallouts(m); val=(val||'').trim().slice(0,30);
+    if(val===null || val===''){ delete e0.custom[id]; }
+    else e0.custom[id]=Object.assign({}, e0.custom[id], {[lang]:val});
+    e0.updatedAt=Date.now(); persist(); renderCallouts(); },
+    {hideDefault:true, resetLabel:'刪除這個地名'});
 }
 function abilDef(en){
   const base=ABIL[en], c=S.db.calib[en], v=(c&&c.v)||{};
@@ -869,6 +890,9 @@ svg.addEventListener('pointerdown', e=>{
   if(S.editCallouts){
     const cEl=e.target.closest('[data-callout]');
     if(cEl){ const m=curMap(), i=+cEl.dataset.callout, p=calloutXY(m,i); S.drag={kind:'callout', i, off:{x:p.x-w.x,y:p.y-w.y}, moved:false}; return; }
+    const ccEl=e.target.closest('[data-ccustom]');
+    if(ccEl){ const c=S.db.calloutPos[curMap().id].custom[ccEl.dataset.ccustom]; S.drag={kind:'ccustom', id:ccEl.dataset.ccustom, off:{x:c.x-w.x,y:c.y-w.y}, moved:false}; return; }
+    S.drag={kind:'pan', p0:toSvg(e.clientX,e.clientY), v0:{...S.view}, moved:false, w, addLabel:true}; return;
     S.drag={kind:'pan', p0:toSvg(e.clientX,e.clientY), v0:{...S.view}, moved:false}; return;
   }
   const hEl = e.target.closest('[data-handle]');
@@ -929,6 +953,9 @@ svg.addEventListener('pointermove', e=>{
     else { o.x2=r1(w.x); o.y2=r1(w.y); }
     reqRender();
   } else if(d.kind==='ruler'){ S.ruler.x2=w.x; S.ruler.y2=w.y; reqRender(); }
+  else if(d.kind==='ccustom'){
+    const m=curMap(), e0=customCallouts(m); e0.custom[d.id]=Object.assign({}, e0.custom[d.id], {x:r1(w.x+d.off.x), y:r1(w.y+d.off.y)}); e0.updatedAt=Date.now(); d.moved=true; renderCallouts();
+  }
   else if(d.kind==='callout'){
     const m=curMap(), e0=S.db.calloutPos[m.id] || {pos:{}};
     e0.pos=Object.assign({},e0.pos,{[d.i]:[r1(w.x+d.off.x), r1(w.y+d.off.y)]}); e0.updatedAt=Date.now();
@@ -943,6 +970,8 @@ function endPtr(e){
   if(ptrs.size>0) return;
   S.drag=null;
   if(d.kind==='callout'){ if(d.moved) persist(); else renameCallout(d.i); return; }
+  if(d.kind==='ccustom'){ if(d.moved) persist(); else editCustomCallout(d.id); return; }
+  if(d.kind==='pan' && d.addLabel && !d.moved && S.editCallouts){ addCustomCallout(d.w); return; }
   if(d.kind==='pan'){ if(!d.moved && S.selected){ S.selected=null; renderObjects(); } return; }
   if(d.kind==='draw'){
     const o=d.o, s=curStrat();
@@ -1018,12 +1047,12 @@ $('hintCancel').onclick=()=>{ if(S.editCallouts){ toggleEditCallouts(false); ret
 function toggleEditCallouts(on){
   S.editCallouts=on; setTool('select'); S.selected=null;
   $('btnEditCallouts').classList.toggle('on',on);
-  if(on){ showHint('拖曳地名移動位置．點一下地名可改名'); $('hintCancel').textContent='完成'; $('hintReset').style.display=''; }
+  if(on){ showHint('拖曳地名移動．點地名改名．點空白處新增地名'); $('hintCancel').textContent='完成'; $('hintReset').style.display=''; }
   else { showHint(null); $('hintCancel').textContent='取消'; $('hintReset').style.display='none'; }
   renderCallouts(); renderObjects();
 }
 $('btnEditCallouts').onclick=()=>toggleEditCallouts(!S.editCallouts);
-$('hintReset').onclick=()=>{ const m=curMap(); askConfirm(`把 ${m.en} 的地名位置還原成預設？`, ()=>{ S.db.calloutPos[m.id]={pos:{},updatedAt:Date.now()}; persist(); renderCallouts(); }); };
+$('hintReset').onclick=()=>{ const m=curMap(); askConfirm(`把 ${m.en} 的官方地名位置和名稱還原成預設？（你新增的地名會保留）`, ()=>{ S.db.calloutPos[m.id]={pos:{},custom:Object.assign({},S.db.calloutPos[m.id]?.custom),updatedAt:Date.now()}; persist(); renderCallouts(); }); };
 $('teamSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; S.ui.team=b.dataset.v; lsSet(LS_UI,S.ui); setSeg('teamSeg',S.ui.team); };
 function applyDock(){ document.body.classList.toggle('dockmin',!!S.ui.dockMin); $('btnDock').textContent=S.ui.dockMin?'▴ 特務':'▾ 收合'; }
 $('btnDock').onclick=()=>{ S.ui.dockMin=!S.ui.dockMin; lsSet(LS_UI,S.ui); applyDock(); };
@@ -1203,8 +1232,11 @@ function askChoice(t, buttons){
   showModal('confirmModal',true);
 }
 let pmCb=null;
-function askText(title, value, def, cb){
-  $('pmTitle').textContent=title; $('pmInput').value=value; $('pmDefault').textContent='預設：'+def; pmCb=cb; showModal('promptModal',true);
+function askText(title, value, def, cb, opt={}){
+  $('pmTitle').textContent=title; $('pmInput').value=value; $('pmDefault').textContent='預設：'+def; pmCb=cb;
+  $('pmDefault').style.display=opt.hideDefault?'none':''; const rb=$('pmReset');
+  if(opt.resetLabel===null){ rb.style.display='none'; } else { rb.style.display=''; rb.textContent=opt.resetLabel||'還原預設'; }
+  showModal('promptModal',true);
   setTimeout(()=>{ $('pmInput').focus(); $('pmInput').select(); },50);
 }
 $('pmOk').onclick=()=>{ showModal('promptModal',false); pmCb&&pmCb($('pmInput').value); pmCb=null; };
