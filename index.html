@@ -44,6 +44,7 @@ select{height:36px;background:var(--panel2);border:0;border-radius:6px;padding:0
 #board{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none;display:block}
 #board.placing{cursor:crosshair}
 .callouts text{fill:#fff;font-weight:700;paint-order:stroke;stroke:#0b131b;stroke-width:3px;stroke-linejoin:round;text-anchor:middle;dominant-baseline:central;pointer-events:none;opacity:.92}
+.callouts.edit text{pointer-events:auto;cursor:move;fill:#ffd36b}
 .obj{cursor:grab}
 #overlay{position:absolute;inset:0;pointer-events:none}
 #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--dim);font-size:14px;text-align:center;padding:20px;pointer-events:auto;background:var(--bg)}
@@ -136,6 +137,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
     <select id="mapSel" title="地圖"></select>
     <div class="seg side" id="sideSeg"><button data-v="atk">進攻</button><button data-v="def">防守</button></div>
     <div class="seg" id="langSeg"><button data-v="zh">中</button><button data-v="en">EN</button><button data-v="off">隱藏</button></div>
+    <button class="ibtn" id="btnEditCallouts" title="拖曳調整地名位置">✥ 地名</button>
     <button class="ibtn" id="btnSettings" title="設定與同步">⚙</button>
   </header>
 
@@ -156,7 +158,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       </g></g>
     </svg>
     <div id="overlay">
-      <div id="hint"><span id="hintText"></span><button id="hintCancel">取消</button></div>
+      <div id="hint"><span id="hintText"></span><button id="hintReset" style="display:none">還原此地圖</button><button id="hintCancel">取消</button></div>
       <div id="zoomCtl">
         <button class="ibtn" id="zIn" title="放大">＋</button>
         <button class="ibtn" id="zOut" title="縮小">－</button>
@@ -393,10 +395,10 @@ function viewRot(){
 }
 
 /* ---------------- 資料庫 ---------------- */
-function emptyDb(){ return {version:1, strats:{}, calib:{}, mapRot:{}}; }
+function emptyDb(){ return {version:1, strats:{}, calib:{}, mapRot:{}, calloutPos:{}}; }
 function loadDb(){
   const d = lsGet(LS_DB,null) || emptyDb();
-  d.strats ||= {}; d.calib ||= {}; d.mapRot ||= {};
+  d.strats ||= {}; d.calib ||= {}; d.mapRot ||= {}; d.calloutPos ||= {};
   S.db = d;
 }
 function liveStrats(){ return Object.values(S.db.strats).filter(s=>!s.deleted).sort((a,b)=>b.updatedAt-a.updatedAt); }
@@ -459,7 +461,7 @@ function mergeMaps(a={}, b={}){
 }
 function mergeDb(local, remote){
   if(!remote) return local;
-  return {version:1, strats:mergeMaps(local.strats,remote.strats), calib:mergeMaps(local.calib,remote.calib), mapRot:mergeMaps(local.mapRot,remote.mapRot)};
+  return {version:1, strats:mergeMaps(local.strats,remote.strats), calib:mergeMaps(local.calib,remote.calib), mapRot:mergeMaps(local.mapRot,remote.mapRot), calloutPos:mergeMaps(local.calloutPos,remote.calloutPos)};
 }
 function stable(o){ if(Array.isArray(o)) return '['+o.map(stable).join(',')+']'; if(o&&typeof o==='object') return '{'+Object.keys(o).sort().map(k=>JSON.stringify(k)+':'+stable(o[k])).join(',')+'}'; return JSON.stringify(o); }
 async function sync(manual){
@@ -524,13 +526,45 @@ function renderAll(){
   renderCallouts(); renderObjects(); renderRuler(); updateUndo();
 }
 function setSeg(id,v){ document.querySelectorAll('#'+id+' button').forEach(b=>b.classList.toggle('on', b.dataset.v===v)); }
+/* 地名位置：手動調整 > 自動移回地圖內 > 官方座標 */
+function calloutXY(m,i){
+  const o=S.db.calloutPos[m.id]?.pos?.[i]; if(o) return {x:o[0],y:o[1]};
+  if(m._adj && m._adj[i]) return m._adj[i];
+  const c=m.callouts[i]; return proj(m,c.x,c.y);
+}
+function ensureAlpha(m){
+  if(m._alphaTried) return; m._alphaTried=true;
+  const img=new Image(); img.crossOrigin='anonymous';
+  img.onload=()=>{
+    try{
+      const N=250, cv=document.createElement('canvas'); cv.width=cv.height=N;
+      const cx=cv.getContext('2d'); cx.drawImage(img,0,0,N,N);
+      const a=cx.getImageData(0,0,N,N).data, solid=(x,y)=>x>=0&&y>=0&&x<N&&y<N&&a[(y*N+x)*4+3]>60;
+      m._adj = m.callouts.map(c=>{
+        const p=proj(m,c.x,c.y), gx=Math.round(p.x*N/1000), gy=Math.round(p.y*N/1000);
+        if(solid(gx,gy)) return null;
+        for(let r=1;r<=25;r++){ let best=null, bd=1e9;
+          for(let dx=-r;dx<=r;dx++) for(let dy=-r;dy<=r;dy++){
+            if(Math.max(Math.abs(dx),Math.abs(dy))!==r || !solid(gx+dx,gy+dy)) continue;
+            const d=dx*dx+dy*dy; if(d<bd){ bd=d; best=[dx,dy]; } }
+          if(best){ const L=Math.hypot(best[0],best[1]), ux=best[0]/L, uy=best[1]/L, k=(L+3)*1000/N;
+            return {x:p.x+ux*k, y:p.y+uy*k}; } }
+        return null;
+      });
+      if(curMap()===m) renderCallouts();
+    }catch(e){ console.warn('無法分析地圖圖片', e); }
+  };
+  img.src=m.icon;
+}
 function renderCallouts(){
   const m=curMap(), g=$('calloutG'), R=viewRot();
-  if(S.ui.lang==='off'){ g.innerHTML=''; return; }
-  g.innerHTML = m.callouts.map(c=>{
-    const p=proj(m,c.x,c.y);
-    const t = S.ui.lang==='zh' ? `${c.twSup||c.sup} ${c.twReg||c.reg}` : `${c.sup} ${c.reg}`;
-    return `<text transform="translate(${r1(p.x)} ${r1(p.y)}) rotate(${-R})">${esc(t.trim())}</text>`;
+  ensureAlpha(m);
+  g.classList.toggle('edit', !!S.editCallouts);
+  if(S.ui.lang==='off' && !S.editCallouts){ g.innerHTML=''; return; }
+  g.innerHTML = m.callouts.map((c,i)=>{
+    const p=calloutXY(m,i);
+    const t = S.ui.lang==='en' ? `${c.sup} ${c.reg}` : `${c.twSup||c.sup} ${c.twReg||c.reg}`;
+    return `<text data-callout="${i}" transform="translate(${r1(p.x)} ${r1(p.y)}) rotate(${-R})">${esc(t.trim())}</text>`;
   }).join('');
 }
 function abilDef(en){ const base=ABIL[en]; if(!base) return null; const c=S.db.calib[en]; return (c && c.v && Object.keys(c.v).length) ?Object.assign({},base,c.v,{calibrated:true}) : Object.assign({},base); }
@@ -662,6 +696,11 @@ svg.addEventListener('pointerdown', e=>{
   }
   if(ptrs.size>2) return;
   const w = toWorld(e.clientX,e.clientY), s=curStrat();
+  if(S.editCallouts){
+    const cEl=e.target.closest('[data-callout]');
+    if(cEl){ const m=curMap(), i=+cEl.dataset.callout, p=calloutXY(m,i); S.drag={kind:'callout', i, off:{x:p.x-w.x,y:p.y-w.y}, moved:false}; return; }
+    S.drag={kind:'pan', p0:toSvg(e.clientX,e.clientY), v0:{...S.view}, moved:false}; return;
+  }
   const hEl = e.target.closest('[data-handle]');
   if(hEl){ S.drag={kind:'rotate', id:hEl.dataset.handle, pre:snap()}; return; }
   if(S.pending){
@@ -719,6 +758,11 @@ svg.addEventListener('pointermove', e=>{
     else { o.x2=r1(w.x); o.y2=r1(w.y); }
     reqRender();
   } else if(d.kind==='ruler'){ S.ruler.x2=w.x; S.ruler.y2=w.y; reqRender(); }
+  else if(d.kind==='callout'){
+    const m=curMap(), e0=S.db.calloutPos[m.id] || {pos:{}};
+    e0.pos=Object.assign({},e0.pos,{[d.i]:[r1(w.x+d.off.x), r1(w.y+d.off.y)]}); e0.updatedAt=Date.now();
+    S.db.calloutPos[m.id]=e0; d.moved=true; renderCallouts();
+  }
 });
 function endPtr(e){
   if(!ptrs.has(e.pointerId)) return;
@@ -727,6 +771,7 @@ function endPtr(e){
   if(d.kind==='pinch'){ if(ptrs.size===0) S.drag=null; else S.drag={kind:'idle'}; return; }
   if(ptrs.size>0) return;
   S.drag=null;
+  if(d.kind==='callout'){ if(d.moved) persist(); return; }
   if(d.kind==='pan'){ if(!d.moved && S.selected){ S.selected=null; renderObjects(); } return; }
   if(d.kind==='draw'){
     const o=d.o, s=curStrat();
@@ -783,7 +828,16 @@ $('abilityRow').addEventListener('click', e=>{
 });
 $('toolRow').addEventListener('click', e=>{ const b=e.target.closest('[data-tool]'); if(b) { setTool(b.dataset.tool); renderAbilities(); } });
 $('btnSpike').onclick=()=>{ const on=S.pending&&S.pending.type==='spike'; setPending(on?null:{type:'spike'},'Spike'); $('btnSpike').classList.toggle('on',!on); renderAbilities(); };
-$('hintCancel').onclick=()=>{ setTool('select'); renderAbilities(); };
+$('hintCancel').onclick=()=>{ if(S.editCallouts){ toggleEditCallouts(false); return; } setTool('select'); renderAbilities(); };
+function toggleEditCallouts(on){
+  S.editCallouts=on; setTool('select'); S.selected=null;
+  $('btnEditCallouts').classList.toggle('on',on);
+  if(on){ showHint('拖曳地名調整位置（會記住並同步）'); $('hintCancel').textContent='完成'; $('hintReset').style.display=''; }
+  else { showHint(null); $('hintCancel').textContent='取消'; $('hintReset').style.display='none'; }
+  renderCallouts(); renderObjects();
+}
+$('btnEditCallouts').onclick=()=>toggleEditCallouts(!S.editCallouts);
+$('hintReset').onclick=()=>{ const m=curMap(); askConfirm(`把 ${m.en} 的地名位置還原成預設？`, ()=>{ S.db.calloutPos[m.id]={pos:{},updatedAt:Date.now()}; persist(); renderCallouts(); }); };
 $('teamSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; S.ui.team=b.dataset.v; lsSet(LS_UI,S.ui); setSeg('teamSeg',S.ui.team); };
 $('btnUndo').onclick=undo; $('btnRedo').onclick=redo;
 $('btnClear').onclick=()=>{ if(!curStrat().objects.length) return; askConfirm('清空這套戰術上的所有物件？（可用 ↶ 復原）', ()=>{ S.selected=null; mutate(s=>{ s.objects=[]; }); }); };
