@@ -248,6 +248,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       <div id="selBar">
         <div class="info" id="selInfo"></div>
         <button class="tool" id="selTeam">友/敵</button>
+        <button class="tool" id="selResize">重設大小</button>
         <button class="tool" id="selCal">調整範圍</button>
         <button class="tool" id="selDup">複製</button>
         <button class="tool" id="selDel" style="color:var(--red)">刪除</button>
@@ -300,7 +301,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
     <div class="body">
       <div class="sec">
         <h3>📐 技能範圍</h3>
-        <p>單位都是公尺。技能範圍以「公尺」記錄，並依每張地圖的官方座標比例換算，所以不能在地圖上隨意縮放。目前內建數值都是<b>未經驗證的估計值（待校準）</b>。沒有範圍的技能也可以在這裡自己選形狀。可以用「測距」工具對照遊戲內實際距離再修正；修改過的會標記為「自訂」並一起同步。</p>
+        <p>單位都是公尺。技能範圍以「公尺」記錄，並依每張地圖的官方座標比例換算。這裡改的是預設大小；個別技能也可以在地圖上拖曳把手改大小（只影響那一個）。目前內建數值都是<b>未經驗證的估計值（待校準）</b>。沒有範圍的技能也可以在這裡自己選形狀。可以用「測距」工具對照遊戲內實際距離再修正；修改過的會標記為「自訂」並一起同步。</p>
         <div class="field"><label>選擇特務</label><select id="calAgent"></select></div>
         <div id="calList"></div>
       </div>
@@ -884,6 +885,16 @@ function shapeSVG(o, def, k, col, acol){
   }
   return '';
 }
+/* 每個技能物件可以有自己的大小（o.size，公尺），存在戰術裡，大家看到的都一樣 */
+function effDef(o){ const ab=findAbility(o), def=ab&&abilDef(ab.en); if(!def) return null; return o.size ? Object.assign({}, def, o.size, {resized:true}) : def; }
+function sizeHandles(o, def, k){
+  const out=[]; if(!def) return out; const R=viewRot();
+  if(def.shape==='circle'){ const a=(-R-45)*Math.PI/180, r=def.r*k; out.push({kind:'radius', x:o.x+r*Math.cos(a), y:o.y+r*Math.sin(a)}); return out; }
+  const h=handlePos(o,def,k); if(h) out.push({kind:'end', x:h.x, y:h.y});
+  if(def.shape==='rect'){ const a=(o.angle||0)*Math.PI/180, L=def.len*k, mid=def.centered?0:L/2, w=def.w*k/2;
+    out.push({kind:'width', x:o.x+mid*Math.cos(a)-w*Math.sin(a)-(4/S.view.s)*Math.sin(a), y:o.y+mid*Math.sin(a)+w*Math.cos(a)+(4/S.view.s)*Math.cos(a)}); }
+  return out;
+}
 function handlePos(o, def, k){
   if(!def || def.shape==='circle') return null;
   const L = def.len*k*((def.shape==='rect'&&def.centered)||def.shape==='cross'?0.5:1), a=(o.angle||0)*Math.PI/180;
@@ -903,13 +914,15 @@ function renderObjects(){
         <circle r="15.3" fill="none" stroke="${agentColor(a)}" stroke-width="2"/>
         ${a?`<image href="${esc(a.icon)}" x="-14" y="-14" width="28" height="28" clip-path="url(#cc)"/>`:''}${selRing}</g></g>`;
     } else if(o.type==='ability'){
-      const ab=findAbility(o), def=ab&&abilDef(ab.en);
+      const ab=findAbility(o), def=effDef(o);
       const acol=agentColor(S.agentById[o.agent]);
       if(def) sh += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})">${shapeSVG(o,def,k,col,acol)}</g>`;
       ic += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})"><g transform="rotate(${-R})">
         <circle r="12.5" fill="${acol}" stroke="${col}" stroke-width="3" ${o.team==='enemy'?'stroke-dasharray="4 2.5"':''}/>
         ${ab?`<image href="${esc(ab.icon)}" x="-8.5" y="-8.5" width="17" height="17" style="filter:brightness(0)"/>`:''}${selRing}</g></g>`;
-      if(sel){ const h=handlePos(o,def,k); if(h) ic += `<g data-handle="${o.id}" style="cursor:alias"><line x1="${o.x}" y1="${o.y}" x2="${h.x}" y2="${h.y}" stroke="#fff" stroke-opacity=".5" stroke-width="${1.5/vs}"/><circle cx="${h.x}" cy="${h.y}" r="${hs*1.6}" fill="transparent"/><circle cx="${h.x}" cy="${h.y}" r="${hs*0.8}" fill="#fff" stroke="#0f1923" stroke-width="${2/vs}"/></g>`; }
+      if(sel) sizeHandles(o,def,k).forEach(h=>{
+        const sq = h.kind!=='end';
+        ic += `<g data-handle="${o.id}" data-hk="${h.kind}" style="cursor:${h.kind==='end'?'alias':'nwse-resize'}">${h.kind==='end'?`<line x1="${o.x}" y1="${o.y}" x2="${h.x}" y2="${h.y}" stroke="#fff" stroke-opacity=".5" stroke-width="${1.5/vs}"/>`:''}<circle cx="${h.x}" cy="${h.y}" r="${hs*1.6}" fill="transparent"/>${sq?`<rect x="${h.x-hs*0.7}" y="${h.y-hs*0.7}" width="${hs*1.4}" height="${hs*1.4}" rx="${hs*0.25}" fill="#ffd36b" stroke="#0f1923" stroke-width="${2/vs}"/>`:`<circle cx="${h.x}" cy="${h.y}" r="${hs*0.8}" fill="#fff" stroke="#0f1923" stroke-width="${2/vs}"/>`}</g>`; });
     } else if(o.type==='spike'){
       ic += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})"><g transform="rotate(${-R})">
         <polygon points="0,-14 12,-7 12,7 0,14 -12,7 -12,-7" fill="#ff4655" stroke="#fff" stroke-width="2"/>
@@ -938,11 +951,11 @@ function renderSelBar(){
   let info='';
   if(o.type==='agent'){ const a=S.agentById[o.agent]; info=`<b>${esc(a?a.tw:'特務')}</b><small>拖曳移動</small>`; }
   else if(o.type==='ability'){
-    const ab=findAbility(o), def=ab&&abilDef(ab.en), a=S.agentById[o.agent];
+    const ab=findAbility(o), def=effDef(o), a=S.agentById[o.agent];
     let dim='僅標記位置（尚無範圍資料）';
     if(def){ dim = dimText(def);
-      dim += def.calibrated?'<span class="badge ok">自訂</span>':'<span class="badge">待校準</span>';
-      if(def.shape!=='circle') dim+=' · 拖白點旋轉'; }
+      dim += def.resized?'<span class="badge ok">此技能已調整</span>':def.calibrated?'<span class="badge ok">自訂</span>':'<span class="badge">待校準</span>';
+      dim += def.shape==='circle'?' · 拖黃色方塊改大小':' · 拖白點轉向／拉長'; }
     info=`<b>${esc(ab?ab.tw:'技能')}</b> <span style="color:var(--dim)">${esc(a?a.tw:'')}</span><small>${dim}</small>`;
   }
   else if(o.type==='spike') info='<b>Spike</b><small>拖曳移動</small>';
@@ -951,6 +964,7 @@ function renderSelBar(){
   $('selInfo').innerHTML=info;
   $('selTeam').style.display = o.type==='spike'?'none':'';
   $('selCal').style.display = o.type==='ability'?'':'none';
+  $('selResize').style.display = (o.type==='ability'&&o.size)?'':'none';
   bar.style.display='flex';
 }
 
@@ -1007,7 +1021,7 @@ svg.addEventListener('pointerdown', e=>{
     S.drag={kind:'pan', p0:toSvg(e.clientX,e.clientY), v0:{...S.view}, moved:false}; return;
   }
   const hEl = e.target.closest('[data-handle]');
-  if(hEl){ S.drag={kind:'rotate', id:hEl.dataset.handle, pre:snap()}; return; }
+  if(hEl){ S.drag={kind:'handle', hk:hEl.dataset.hk||'end', id:hEl.dataset.handle, pre:snap()}; return; }
   if(S.pending){
     const p=S.pending, o={id:uid(), type:p.type, x:r1(w.x), y:r1(w.y), team:S.ui.team};
     if(p.type==='agent') o.agent=p.agent;
@@ -1055,9 +1069,16 @@ svg.addEventListener('pointermove', e=>{
     if(o.type==='pen') o.pts=d.orig.pts.map(p=>[r1(p[0]+dx),r1(p[1]+dy)]);
     else { o.x=r1(d.orig.x+dx); o.y=r1(d.orig.y+dy); if(o.type==='arrow'){ o.x2=r1(d.orig.x2+dx); o.y2=r1(d.orig.y2+dy); } }
     reqRender();
-  } else if(d.kind==='rotate'){
-    const o=s.objects.find(x=>x.id===d.id); if(!o) return;
-    o.angle=Math.round(Math.atan2(w.y-o.y, w.x-o.x)*180/Math.PI); reqRender();
+  } else if(d.kind==='handle'){
+    const o=s.objects.find(x=>x.id===d.id); if(!o) return; const def=effDef(o); if(!def) return;
+    const k=ppm(curMap()), dx=w.x-o.x, dy=w.y-o.y, dist=Math.hypot(dx,dy)/k, rnd=v=>Math.max(0.5, Math.round(v*20)/20);
+    if(d.hk==='end'){
+      o.angle=Math.round(Math.atan2(dy,dx)*180/Math.PI);
+      const L = (def.shape==='cross' || (def.shape==='rect'&&def.centered)) ? dist*2 : dist;
+      o.size=Object.assign({}, o.size, {len:rnd(L)});
+    } else if(d.hk==='radius'){ o.size=Object.assign({}, o.size, {r:rnd(dist)}); }
+    else if(d.hk==='width'){ const a=(o.angle||0)*Math.PI/180, perp=Math.abs(-dx*Math.sin(a)+dy*Math.cos(a))/k; o.size=Object.assign({}, o.size, {w:rnd(perp*2)}); }
+    reqRender();
   } else if(d.kind==='draw'){
     const o=d.o;
     if(o.type==='pen'){ const l=o.pts[o.pts.length-1]; if(Math.hypot(w.x-l[0],w.y-l[1])*S.view.s>3) o.pts.push([r1(w.x),r1(w.y)]); }
@@ -1173,6 +1194,7 @@ applyDock();
 $('btnUndo').onclick=undo; $('btnRedo').onclick=redo;
 $('btnClear').onclick=()=>{ if(!curStrat().objects.length) return; askConfirm('清空這套戰術上的所有物件？（可用 ↶ 復原）', ()=>{ S.selected=null; mutate(s=>{ s.objects=[]; }); }); };
 $('selDel').onclick=deleteSelected;
+$('selResize').onclick=()=>{ const id=S.selected; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(o) delete o.size; }); };
 $('selCal').onclick=()=>{ const o=curStrat().objects.find(x=>x.id===S.selected); if(!o) return;
   $('btnSettings').click(); $('calAgent').value=o.agent; $('calAgent')._touched=true; renderCalib();
   setTimeout(()=>{ const el=document.getElementById('cal-'+o.slot); if(el){ el.scrollIntoView({block:'center'}); el.style.outline='2px solid var(--red)'; setTimeout(()=>el.style.outline='',1500); } },80); };
@@ -1342,7 +1364,7 @@ function compactStrat(s){
   const R=Math.round, A=id=>S.agentById[id]?.en||id, SL=sl=>SLOT_KEY[sl]||sl;
   const o=s.objects.map(o=>{ const t=o.team==='enemy'?1:0;
     if(o.type==='agent') return ['a',A(o.agent),t,R(o.x),R(o.y)];
-    if(o.type==='ability') return ['b',A(o.agent),SL(o.slot),t,R(o.x),R(o.y),R(o.angle||0)];
+    if(o.type==='ability') return o.size ? ['b',A(o.agent),SL(o.slot),t,R(o.x),R(o.y),R(o.angle||0),o.size] : ['b',A(o.agent),SL(o.slot),t,R(o.x),R(o.y),R(o.angle||0)];
     if(o.type==='spike') return ['s',R(o.x),R(o.y)];
     if(o.type==='pen') return ['p',t].concat(...o.pts.map(p=>[R(p[0]),R(p[1])]));
     if(o.type==='arrow') return ['r',t,R(o.x),R(o.y),R(o.x2),R(o.y2)];
@@ -1356,7 +1378,7 @@ function expandStrat(d){
   const slotOf=k=>Object.keys(SLOT_KEY).find(x=>SLOT_KEY[x]===k)||k;
   const objs=(arr||[]).map(a=>{ const id=uid(), T=v=>v?'enemy':'ally'; switch(a[0]){
     case 'a': return {id,type:'agent',agent:ag(a[1]),team:T(a[2]),x:a[3],y:a[4]};
-    case 'b': return {id,type:'ability',agent:ag(a[1]),slot:slotOf(a[2]),team:T(a[3]),x:a[4],y:a[5],angle:a[6]};
+    case 'b': { const o={id,type:'ability',agent:ag(a[1]),slot:slotOf(a[2]),team:T(a[3]),x:a[4],y:a[5],angle:a[6]}; if(a[7]&&typeof a[7]==='object') o.size=a[7]; return o; }
     case 's': return {id,type:'spike',x:a[1],y:a[2]};
     case 'p': { const pts=[]; for(let k=2;k+1<a.length;k+=2) pts.push([a[k],a[k+1]]); return {id,type:'pen',team:T(a[1]),pts}; }
     case 'r': return {id,type:'arrow',team:T(a[1]),x:a[2],y:a[3],x2:a[4],y2:a[5]};
