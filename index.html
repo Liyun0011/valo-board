@@ -31,6 +31,7 @@ button{cursor:pointer;border:0;background:none}
 #saveStatus{font-size:12px;color:var(--dim);white-space:nowrap}
 #saveStatus.err{color:var(--warn)}
 .spacer{flex:1}
+.short{display:none}
 select{height:36px;background:var(--panel2);border:0;border-radius:6px;padding:0 8px;font-weight:700}
 .seg{display:inline-flex;background:var(--panel2);border-radius:6px;padding:3px;flex-shrink:0}
 .seg button{padding:0 10px;height:30px;border-radius:4px;font-size:13px;font-weight:700;color:var(--dim);white-space:nowrap}
@@ -90,15 +91,18 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .agent.on{border-color:var(--red);background:#2a1b22}
 .agent.on span{color:var(--text)}
 @media (min-width:900px) and (min-aspect-ratio:5/4){
-  #app{display:grid;grid-template-columns:clamp(360px,28vw,460px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
+  #app{display:grid;grid-template-columns:clamp(380px,28vw,460px) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
   #topbar{grid-column:1/-1}
   #stage{grid-column:2;grid-row:2}
   #dock{grid-column:1;grid-row:2;border-top:0;border-right:1px solid var(--line);overflow:hidden;display:flex;flex-direction:column;gap:8px;padding:10px 10px calc(10px + var(--safe-b));min-height:0}
   #dock>*{flex-shrink:0}
-  #toolRow{order:1;flex-wrap:wrap;overflow:visible}
+  #toolRow{order:1;flex-wrap:nowrap;overflow:visible;gap:4px}
+  #toolRow .tool{flex:1 1 0;min-width:0;padding:0;justify-content:center;font-size:15px}
+  #toolRow .tool .lbl{display:none}
   #toolRow .sep,#toolRow .spacer,#btnDock,.scrollBtn{display:none!important}
-  #teamSeg{width:100%}
-  #teamSeg button{flex:1}
+  #dock #teamSeg{flex:0 0 auto;padding:2px}
+  #dock #teamSeg button{padding:0 6px;font-size:12px;height:34px}
+  #dock .long{display:none} #dock .short{display:inline}
   body.dockmin .agentsWrap{display:flex}
   body.dockmin #abilityRow{display:grid}
   /* 特務：中間可捲動區 */
@@ -111,7 +115,7 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
   .agent span{max-width:100%}
   .rlabel{writing-mode:horizontal-tb;grid-column:1/-1;height:auto;border-left:0;margin:4px 0 0;padding:0;letter-spacing:.1em;font-size:11px}
   /* 技能：固定在下方，田字排列 */
-  #abilityRow{order:3;display:grid;grid-template-columns:1fr 1fr;gap:6px;overflow:visible;min-height:0;border-top:1px solid var(--line);padding-top:10px}
+  #dock #abilityRow{order:3;display:grid!important;grid-template-columns:1fr 1fr;gap:6px;overflow:visible;min-height:0;border-top:1px solid var(--line);padding-top:10px}
   #abilityRow .empty{grid-column:1/-1;padding:6px 4px;line-height:1.5}
   #abilityRow .agent-place{grid-column:1/-1;height:44px;flex-direction:row}
   #abilityRow .abil:not(.agent-place){height:auto;min-height:74px;flex-direction:column;justify-content:center;padding:8px 4px 6px;gap:4px}
@@ -229,17 +233,17 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
 
   <footer id="dock">
     <div class="row" id="toolRow">
-      <button class="tool on" data-tool="select">✋ 選取</button>
-      <button class="tool" data-tool="pen">✏️ 畫筆</button>
-      <button class="tool" data-tool="arrow">➜ 箭頭</button>
-      <button class="tool" data-tool="ruler">📏 測距</button>
-      <button class="tool" id="btnSpike">◆ Spike</button>
+      <button class="tool on" data-tool="select" title="選取／移動">✋<span class="lbl"> 選取</span></button>
+      <button class="tool" data-tool="pen" title="畫筆">✏️<span class="lbl"> 畫筆</span></button>
+      <button class="tool" data-tool="arrow" title="箭頭">➜<span class="lbl"> 箭頭</span></button>
+      <button class="tool" data-tool="ruler" title="測距（公尺）">📏<span class="lbl"> 測距</span></button>
+      <button class="tool" id="btnSpike" title="放置 Spike">◆<span class="lbl"> Spike</span></button>
       <span class="sep"></span>
       <div class="seg team" id="teamSeg"><button data-v="ally">友方</button><button data-v="enemy">敵方</button></div>
       <span class="sep"></span>
       <button class="tool" id="btnUndo" title="復原">↶</button>
       <button class="tool" id="btnRedo" title="重做">↷</button>
-      <button class="tool" id="btnClear">清空</button>
+      <button class="tool" id="btnClear" title="清空">🗑<span class="lbl"> 清空</span></button>
       <span class="spacer"></span>
       <button class="tool" id="btnDock" title="收合特務列，讓地圖更大">▾ 收合</button>
     </div>
@@ -603,7 +607,9 @@ function renderAll(){
   $('stratName').value = s.name;
   $('mapSel').value = m.id; $('mapSel').disabled = !!S.shared;
   setSeg('sideSeg', s.side); setSeg('langSeg', S.ui.lang); setSeg('teamSeg', S.ui.team);
-  const tb=$('teamSeg').querySelectorAll('button'); tb[0].textContent = s.side==='def'?'防守方（我方）':'進攻方（我方）'; tb[1].textContent = s.side==='def'?'進攻方（敵方）':'防守方（敵方）';
+  const tb=$('teamSeg').querySelectorAll('button'); const me=s.side==='def'?['防守','守']:['進攻','攻'], en=s.side==='def'?['進攻','攻']:['防守','守'];
+  tb[0].innerHTML=`<span class="long">${me[0]}</span><span class="short">${me[1]}</span>(我)`; tb[0].title=me[0]+'方（我方）';
+  tb[1].innerHTML=`<span class="long">${en[0]}</span><span class="short">${en[1]}</span>(敵)`; tb[1].title=en[0]+'方（敵方）';
   $('mapImg').setAttribute('href', m.icon);
   worldG.setAttribute('transform',`rotate(${viewRot()} 500 500)`);
   renderCallouts(); renderObjects(); renderRuler(); updateUndo();
