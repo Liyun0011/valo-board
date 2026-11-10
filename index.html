@@ -1129,8 +1129,21 @@ svg.addEventListener('pointermove', e=>{
       const a=(o.angle||0)*Math.PI/180; const perp=(-dx*Math.sin(a)+dy*Math.cos(a))/k;
       o.bend=Math.round(Math.max(-def.len*0.6, Math.min(def.len*0.6, perp))*10)/10;
     } else if(d.hk==='pathend'){
+      // 往回拖：指標沿著剛畫的線往回走，就把走過的那段擦掉（只看線尾附近，交叉舊路線不會誤擦）
+      const all=pathPts(o), thr=10/S.view.s, win=45/S.view.s;
+      let total=0; const segs=[];
+      for(let q=1;q<all.length;q++){ const L=Math.hypot(all[q][0]-all[q-1][0], all[q][1]-all[q-1][1]); segs.push({q, from:total, L}); total+=L; }
+      let best=null;
+      for(const sg of segs){ if(sg.from+sg.L < total-win || !sg.L) continue;
+        const a=all[sg.q-1], b=all[sg.q], vx=b[0]-a[0], vy=b[1]-a[1];
+        let t=((w.x-a[0])*vx+(w.y-a[1])*vy)/(sg.L*sg.L); t=Math.max(0,Math.min(1,t));
+        const px=a[0]+vx*t, py=a[1]+vy*t, dd=Math.hypot(w.x-px,w.y-py);
+        if(dd<thr && (!best || dd<best.dd)) best={q:sg.q, px, py, dd, pos:sg.from+sg.L*t}; }
+      if(best && best.pos < total-thr){
+        const keep=all.slice(1, best.q); keep.push([r1(best.px), r1(best.py)]);
+        o.path = best.pos<0.5 ? [] : keep; reqRender(); return; }
       const pts=pathPts(o), last=pts[pts.length-1], seg=Math.hypot(w.x-last[0], w.y-last[1]);
-      if(seg*S.view.s>4){ const used=polyLen(pts), remain=def.max*k-used;
+      if(seg*S.view.s>6){ const used=polyLen(pts), remain=def.max*k-used;
         if(remain>0.5){ const t=Math.min(1, remain/seg); (o.path ||= []).push([r1(last[0]+(w.x-last[0])*t), r1(last[1]+(w.y-last[1])*t)]); } }
     }
     reqRender();
