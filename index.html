@@ -404,23 +404,23 @@ const ABIL = {
   // Omen
   'Dark Cover':{shape:'circle',r:4.1}, 'Paranoia':{shape:'rect',len:34,w:6},
   // Viper
-  'Snake Bite':{shape:'circle',r:4.5}, 'Poison Cloud':{shape:'circle',r:4.5}, 'Toxic Screen':{shape:'rect',len:50,w:1}, "Viper's Pit":{shape:'circle',r:17},
+  'Snake Bite':{shape:'circle',r:4.5}, 'Poison Cloud':{shape:'circle',r:4.5}, 'Toxic Screen':{shape:'rect',len:50,w:1}, "Viper's Pit":{shape:'area'},
   // Astra
   'Gravity Well':{shape:'circle',r:4.75}, 'Nova Pulse':{shape:'circle',r:4.75}, 'Nebula':{shape:'circle',r:4.75}, 'Astral Form / Cosmic Divide':{shape:'rect',len:100,w:1},
   // Harbor
-  'Cove':{shape:'circle',r:4.5}, 'Waveform':{shape:'circle',r:4.5}, 'High Tide':{shape:'rect',len:50,w:1}, 'Cascade':{shape:'rect',len:30,w:8}, 'Reckoning':{shape:'circle',r:17}, 'Storm Surge':{shape:'circle',r:6},
+  'Cove':{shape:'circle',r:4.5}, 'Waveform':{shape:'circle',r:4.5}, 'High Tide':{shape:'curve',len:30,w:1,adjust:true,max:50}, 'Cascade':{shape:'rect',len:30,w:8}, 'Reckoning':{shape:'circle',r:17}, 'Storm Surge':{shape:'circle',r:6},
   // Clove
   'Ruse':{shape:'circle',r:4.1}, 'Meddle':{shape:'circle',r:6},
   // Jett
   'Cloudburst':{shape:'circle',r:3.35},
   // Phoenix
-  'Blaze':{shape:'rect',len:18,w:1}, 'Hot Hands':{shape:'circle',r:4.5},
+  'Blaze':{shape:'curve',len:18,w:1}, 'Hot Hands':{shape:'circle',r:4.5},
   // Sage
   'Barrier Orb':{shape:'rect',len:10.5,w:1,centered:true}, 'Slow Orb':{shape:'circle',r:7},
   // Sova
   'Recon Bolt':{shape:'circle',r:30}, 'Shock Bolt':{shape:'circle',r:4}, "Hunter's Fury":{shape:'rect',len:66,w:2.5},
   // Breach
-  'Fault Line':{shape:'rect',len:46,w:7}, 'Aftershock':{shape:'circle',r:4}, 'Rolling Thunder':{shape:'cone',len:32,deg:55},
+  'Fault Line':{shape:'rect',len:30,w:7,adjust:true,max:46}, 'Aftershock':{shape:'circle',r:4}, 'Rolling Thunder':{shape:'cone',len:32,deg:55},
   // KAY/O
   'FRAG/ment':{shape:'circle',r:4.5}, 'ZERO/point':{shape:'circle',r:15}, 'NULL/cmd':{shape:'circle',r:42.5},
   // Skye
@@ -432,13 +432,13 @@ const ABIL = {
   // Killjoy
   'Nanoswarm':{shape:'circle',r:4}, 'ALARMBOT':{shape:'circle',r:5.5}, 'Alarmbot':{shape:'circle',r:5.5}, 'TURRET':{shape:'cone',len:40,deg:100}, 'Turret':{shape:'cone',len:40,deg:100}, 'Lockdown':{shape:'circle',r:32.5},
   // Cypher
-  'Trapwire':{shape:'line',len:15}, 'Cyber Cage':{shape:'circle',r:3.65},
+  'Trapwire':{shape:'line',len:10,adjust:true,max:15}, 'Cyber Cage':{shape:'circle',r:3.65},
   // Chamber
   'Trademark':{shape:'circle',r:13}, 'Rendezvous':{shape:'circle',r:13},
   // Deadlock
   'GravNet':{shape:'circle',r:5}, 'Sonic Sensor':{shape:'cone',len:20,deg:90}, 'Annihilation':{shape:'line',len:40},
   // Neon
-  'Fast Lane':{shape:'rect',len:50,w:4}, 'Relay Bolt':{shape:'circle',r:6},
+  'Fast Lane':{shape:'rect',len:50,w:4,adjust:true,max:50}, 'Relay Bolt':{shape:'circle',r:6},
   // Raze
   'Paint Shells':{shape:'circle',r:7},
   // Vyse
@@ -448,9 +448,10 @@ const ABIL = {
   // Tejo
   'Guided Salvo':{shape:'circle',r:4.5}, 'Armageddon':{shape:'rect',len:40,w:8}, 'Special Delivery':{shape:'circle',r:5}, 'Stealth Drone':{shape:'circle',r:15},
   // 補充（估計值，待校準）
-  'Cosmic Divide':{shape:'rect',len:100,w:1}, 'Thrash':{shape:'circle',r:7}, 'Dizzy':{shape:'cone',len:20,deg:60},
+  'Cosmic Divide':{shape:'rect',len:100,w:1}, 'Thrash':{shape:'path',max:25,endR:7}, 'Dizzy':{shape:'circle',r:15},
   'Barrier Mesh':{shape:'cross',len:10}, 'Showstopper':{shape:'circle',r:7}, 'Blast Pack':{shape:'circle',r:4},
-  'Trailblazer':{shape:'circle',r:4.5}, 'M-pulse':{shape:'circle',r:7}, 'Bassquake':{shape:'rect',len:30,w:14},
+  'Trailblazer':{shape:'path',max:30,endR:4.5}, 'M-pulse':{shape:'circle',r:7}, 'Bassquake':{shape:'cone',len:20,deg:60},
+  'Prowler':{shape:'path',max:30}, 'Wingman':{shape:'path',max:30}, 'Guiding Light':{shape:'path',max:40}, 'Owl Drone':{shape:'path',max:40},
   'Displacement':{shape:'circle',r:6}, 'Suspension':{shape:'circle',r:8}, 'Interceptor':{shape:'circle',r:10},
   'Chokehold':{shape:'circle',r:6}, 'Saturate':{shape:'circle',r:6}, 'Convergent Paths':{shape:'rect',len:30,w:10}
 };
@@ -458,10 +459,11 @@ const ABIL = {
 const SMOKE_LOOK = {'Ruse':'clove','Sky Smoke':'brim','Dark Cover':'omen','Nebula':'astra','Cove':'harbor','Waveform':'miks','Poison Cloud':'viper','Cloudburst':'jett','Cyber Cage':'cypher'};
 const SMOKE_HL = {miks:'#fff3a0',brim:'#ffffff',omen:'#6b4fa0',astra:'#ffcc80',harbor:'#bff4ff',viper:'#e8ff9a',jett:'#ffffff',cypher:'#ffffff'};
 const SMOKE_RIM = {miks:'#4f7f9a',brim:'#d9853b',omen:'#4a3474',astra:'#a64dd6',harbor:'#1f5f9a',viper:'#1e5f3e',jett:'#8fb6d6',cypher:'#9aa6b2'};
-const SHAPE_PARAMS = {circle:[['r','半徑']], cone:[['len','長度'],['deg','角度°']], rect:[['len','長度'],['w','寬度']], line:[['len','長度']], cross:[['len','每條長']]};
-const SHAPE_NAME = {circle:'圓形', cone:'扇形', rect:'長方形', line:'直線', cross:'十字'};
-const SHAPE_DEFAULT = {circle:{r:5}, cone:{len:20,deg:60}, rect:{len:20,w:4}, line:{len:20}, cross:{len:10}};
-function dimText(def){ return def.shape==='circle'?`半徑 ${def.r}m`: def.shape==='cone'?`長 ${def.len}m · ${def.deg}°`: def.shape==='rect'?`${def.len}m × ${def.w}m`: def.shape==='cross'?`十字 每條 ${def.len}m`:`長 ${def.len}m`; }
+const SHAPE_PARAMS = {circle:[['r','半徑']], cone:[['len','長度'],['deg','角度°']], rect:[['len','長度'],['w','寬度']], line:[['len','長度']], cross:[['len','每條長']], curve:[['len','長度'],['w','寬度']], path:[['max','最遠距離'],['endR','終點範圍半徑']], area:[]};
+function paramsFor(def){ const ps=[...(SHAPE_PARAMS[def.shape]||[])]; if(def.adjust && def.shape!=='path') ps.push(['max','上限']); return ps; }
+const SHAPE_NAME = {circle:'圓形', cone:'扇形', rect:'長方形', line:'直線', cross:'十字', curve:'可彎的牆', path:'路線箭頭', area:'自己畫範圍'};
+const SHAPE_DEFAULT = {circle:{r:5}, cone:{len:20,deg:60}, rect:{len:20,w:4}, line:{len:20}, cross:{len:10}, curve:{len:18,w:1}, path:{max:30,endR:0}, area:{}};
+function dimText(def){ if(def.shape==='path') return `路線 最遠 ${def.max}m`+(def.endR?` · 終點半徑 ${def.endR}m`:''); if(def.shape==='area') return '自己畫的範圍'; if(def.shape==='curve') return `可彎的牆 ${def.len}m`+(def.adjust?`（上限 ${def.max}m）`:''); if(def.adjust) return (def.shape==='rect'?`${def.len}m × ${def.w}m`:`長 ${def.len}m`)+`（上限 ${def.max}m）`; return def.shape==='circle'?`半徑 ${def.r}m`: def.shape==='cone'?`長 ${def.len}m · ${def.deg}°`: def.shape==='rect'?`${def.len}m × ${def.w}m`: def.shape==='cross'?`十字 每條 ${def.len}m`:`長 ${def.len}m`; }
 const SLOT_ORDER = ['Grenade','Ability1','Ability2','Ultimate'];
 const SLOT_KEY = {Grenade:'C',Ability1:'Q',Ability2:'E',Ultimate:'X'};
 
@@ -852,6 +854,17 @@ function agentColor(a){
 }
 function teamColor(t){ return t==='enemy' ? '#ff4655' : '#36d6c3'; }
 function findAbility(o){ const a=S.agentById[o.agent]; return a && a.abilities.find(x=>x.slot===o.slot); }
+function pathPts(o){ return [[o.x,o.y]].concat(o.path||[]); }
+function polyLen(pts){ let L=0; for(let i=1;i<pts.length;i++) L+=Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]); return L; }
+/* 可彎的牆：起點固定，依角度與彎曲量算出二次曲線；弦長自動縮短，讓曲線長度維持 len */
+function curveGeom(o, def, k){
+  const L=def.len*k, a=(o.angle||0)*Math.PI/180, b=(o.bend||0)*k, ux=Math.cos(a), uy=Math.sin(a), px=-uy, py=ux;
+  const lenOf=c=>{ let t=0, lx=o.x, ly=o.y; for(let i=1;i<=24;i++){ const u=i/24, cx=o.x+ux*c/2+px*b*2, cy=o.y+uy*c/2+py*b*2, ex=o.x+ux*c, ey=o.y+uy*c;
+      const x=(1-u)*(1-u)*o.x+2*(1-u)*u*cx+u*u*ex, y=(1-u)*(1-u)*o.y+2*(1-u)*u*cy+u*u*ey; t+=Math.hypot(x-lx,y-ly); lx=x; ly=y; } return t; };
+  let c=L; for(let i=0;i<6;i++){ const l=lenOf(c); if(l<1e-6) break; c=c*L/l; }
+  const cx=o.x+ux*c/2+px*b*2, cy=o.y+uy*c/2+py*b*2, ex=o.x+ux*c, ey=o.y+uy*c;
+  return {cx,cy,ex,ey, mx:0.25*o.x+0.5*cx+0.25*ex, my:0.25*o.y+0.5*cy+0.25*ey};
+}
 function shapeSVG(o, def, k, col, acol){
   const dash = o.team==='enemy' ? `stroke-dasharray="${7/S.view.s} ${4/S.view.s}"` : '';
   const fill = `fill="${acol}" fill-opacity=".3" stroke="${col}" stroke-width="${2.2/S.view.s}" ${dash}`;
@@ -866,6 +879,23 @@ function shapeSVG(o, def, k, col, acol){
         <circle r="${R+2.5/vs}" fill="none" stroke="${col}" stroke-width="${2/vs}" ${dash}/>`;
     }
     return `<circle r="${def.r*k}" ${fill}/>`;
+  }
+  const vs=S.view.s;
+  if(def.shape==='path'){
+    const pts=pathPts(o), d=pts.map((p,i)=>(i?'L':'M')+r1(p[0]-o.x)+' '+r1(p[1]-o.y)).join('');
+    const last=pts[pts.length-1]; let out='';
+    if(pts.length>1) out+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="${6/vs}" stroke-linecap="round" stroke-linejoin="round" stroke-opacity=".55"/><path d="${d}" fill="none" stroke="${acol}" stroke-width="${3/vs}" stroke-dasharray="${8/vs} ${5/vs}" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#${o.team==='enemy'?'ahE':'ahA'})"/>`;
+    if(def.endR) out+=`<circle cx="${last[0]-o.x}" cy="${last[1]-o.y}" r="${def.endR*k}" ${fill}/>`;
+    return out;
+  }
+  if(def.shape==='area'){
+    if(!o.poly || o.poly.length<3) return '';
+    return `<path d="${o.poly.map((p,i)=>(i?'L':'M')+r1(p[0]-o.x)+' '+r1(p[1]-o.y)).join('')}Z" ${fill} stroke-linejoin="round"/>`;
+  }
+  if(def.shape==='curve'){
+    const g=curveGeom(o,def,k), w=Math.max(def.w*k, 3/vs);
+    const d=`M0 0Q${r1(g.cx-o.x)} ${r1(g.cy-o.y)} ${r1(g.ex-o.x)} ${r1(g.ey-o.y)}`;
+    return `<path d="${d}" fill="none" stroke="${col}" stroke-width="${w+4/vs}" stroke-linecap="round" ${o.team==='enemy'?`stroke-dasharray="${7/vs} ${4/vs}"`:''}/><path d="${d}" fill="none" stroke="${acol}" stroke-width="${w}" stroke-linecap="round"/>`;
   }
   const rot = `transform="rotate(${o.angle||0})"`;
   if(def.shape==='cone'){
@@ -888,11 +918,13 @@ function shapeSVG(o, def, k, col, acol){
 /* 每個技能物件可以有自己的大小（o.size，公尺），存在戰術裡，大家看到的都一樣 */
 function effDef(o){ const ab=findAbility(o), def=ab&&abilDef(ab.en); if(!def) return null; return o.size ? Object.assign({}, def, o.size, {resized:true}) : def; }
 function sizeHandles(o, def, k){
-  const out=[]; if(!def) return out; const R=viewRot();
-  if(def.shape==='circle'){ const a=(-R-45)*Math.PI/180, r=def.r*k; out.push({kind:'radius', x:o.x+r*Math.cos(a), y:o.y+r*Math.sin(a)}); return out; }
+  const out=[]; if(!def) return out;
+  if(def.shape==='circle' || def.shape==='area') return out;
+  if(def.shape==='path'){ const pts=pathPts(o), last=pts[pts.length-1], R=viewRot()*Math.PI/180;
+    const off = pts.length>1 ? [0,0] : [ 22/S.view.s*Math.sin(R), -22/S.view.s*Math.cos(R) ];
+    out.push({kind:'pathend', x:last[0]+off[0], y:last[1]+off[1]}); return out; }
+  if(def.shape==='curve'){ const g=curveGeom(o,def,k); out.push({kind:'end', x:g.ex, y:g.ey}); out.push({kind:'bend', x:g.mx, y:g.my}); return out; }
   const h=handlePos(o,def,k); if(h) out.push({kind:'end', x:h.x, y:h.y});
-  if(def.shape==='rect'){ const a=(o.angle||0)*Math.PI/180, L=def.len*k, mid=def.centered?0:L/2, w=def.w*k/2;
-    out.push({kind:'width', x:o.x+mid*Math.cos(a)-w*Math.sin(a)-(4/S.view.s)*Math.sin(a), y:o.y+mid*Math.sin(a)+w*Math.cos(a)+(4/S.view.s)*Math.cos(a)}); }
   return out;
 }
 function handlePos(o, def, k){
@@ -920,9 +952,11 @@ function renderObjects(){
       ic += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})"><g transform="rotate(${-R})">
         <circle r="12.5" fill="${acol}" stroke="${col}" stroke-width="3" ${o.team==='enemy'?'stroke-dasharray="4 2.5"':''}/>
         ${ab?`<image href="${esc(ab.icon)}" x="-8.5" y="-8.5" width="17" height="17" style="filter:brightness(0)"/>`:''}${selRing}</g></g>`;
+      if(sel && def && def.shape==='path'){ const pts=pathPts(o), used=polyLen(pts)/k, last=pts[pts.length-1];
+        ic += `<g transform="translate(${last[0]} ${last[1]}) rotate(${-R})"><text y="${-16/vs}" text-anchor="middle" font-size="${12/vs}" font-weight="700" fill="#fff" stroke="#0b131b" stroke-width="${3/vs}" paint-order="stroke">${used.toFixed(1)} / ${def.max} m</text></g>`; }
       if(sel) sizeHandles(o,def,k).forEach(h=>{
-        const sq = h.kind!=='end';
-        ic += `<g data-handle="${o.id}" data-hk="${h.kind}" style="cursor:${h.kind==='end'?'alias':'nwse-resize'}">${h.kind==='end'?`<line x1="${o.x}" y1="${o.y}" x2="${h.x}" y2="${h.y}" stroke="#fff" stroke-opacity=".5" stroke-width="${1.5/vs}"/>`:''}<circle cx="${h.x}" cy="${h.y}" r="${hs*1.6}" fill="transparent"/>${sq?`<rect x="${h.x-hs*0.7}" y="${h.y-hs*0.7}" width="${hs*1.4}" height="${hs*1.4}" rx="${hs*0.25}" fill="#ffd36b" stroke="#0f1923" stroke-width="${2/vs}"/>`:`<circle cx="${h.x}" cy="${h.y}" r="${hs*0.8}" fill="#fff" stroke="#0f1923" stroke-width="${2/vs}"/>`}</g>`; });
+        const sq = h.kind==='bend';
+        ic += `<g data-handle="${o.id}" data-hk="${h.kind}" style="cursor:${h.kind==='bend'?'move':h.kind==='pathend'?'crosshair':'alias'}">${(h.kind==='end')?`<line x1="${o.x}" y1="${o.y}" x2="${h.x}" y2="${h.y}" stroke="#fff" stroke-opacity=".5" stroke-width="${1.5/vs}"/>`:''}<circle cx="${h.x}" cy="${h.y}" r="${hs*1.6}" fill="transparent"/>${sq?`<rect x="${h.x-hs*0.7}" y="${h.y-hs*0.7}" width="${hs*1.4}" height="${hs*1.4}" rx="${hs*0.25}" fill="#ffd36b" stroke="#0f1923" stroke-width="${2/vs}"/>`:`<circle cx="${h.x}" cy="${h.y}" r="${hs*0.8}" fill="#fff" stroke="#0f1923" stroke-width="${2/vs}"/>`}</g>`; });
     } else if(o.type==='spike'){
       ic += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})"><g transform="rotate(${-R})">
         <polygon points="0,-14 12,-7 12,7 0,14 -12,7 -12,-7" fill="#ff4655" stroke="#fff" stroke-width="2"/>
@@ -955,7 +989,7 @@ function renderSelBar(){
     let dim='僅標記位置（尚無範圍資料）';
     if(def){ dim = dimText(def);
       dim += def.resized?'<span class="badge ok">此技能已調整</span>':def.calibrated?'<span class="badge ok">自訂</span>':'<span class="badge">待校準</span>';
-      dim += def.shape==='circle'?' · 拖黃色方塊改大小':' · 拖白點轉向／拉長'; }
+      dim += def.shape==='path'?' · 拖白點畫路線':def.shape==='curve'?' · 白點轉向'+(def.adjust?'／拉長':'')+'，黃點拉彎':(def.shape==='circle'||def.shape==='area')?'':(def.adjust?' · 拖白點轉向／拉長':' · 拖白點轉向'); }
     info=`<b>${esc(ab?ab.tw:'技能')}</b> <span style="color:var(--dim)">${esc(a?a.tw:'')}</span><small>${dim}</small>`;
   }
   else if(o.type==='spike') info='<b>Spike</b><small>拖曳移動</small>';
@@ -964,7 +998,8 @@ function renderSelBar(){
   $('selInfo').innerHTML=info;
   $('selTeam').style.display = o.type==='spike'?'none':'';
   $('selCal').style.display = o.type==='ability'?'':'none';
-  $('selResize').style.display = (o.type==='ability'&&o.size)?'':'none';
+  $('selResize').style.display = (o.type==='ability'&&(o.size||o.bend||(o.path&&o.path.length)))?'':'none';
+  $('selResize').textContent = (o.type==='ability'&&o.path&&o.path.length)?'重畫路線':(o.bend?'拉直':'重設大小');
   bar.style.display='flex';
 }
 
@@ -1025,7 +1060,11 @@ svg.addEventListener('pointerdown', e=>{
   if(S.pending){
     const p=S.pending, o={id:uid(), type:p.type, x:r1(w.x), y:r1(w.y), team:S.ui.team};
     if(p.type==='agent') o.agent=p.agent;
-    if(p.type==='ability'){ o.agent=p.agent; o.slot=p.slot; o.angle=Math.round(-90-viewRot()); }
+    if(p.type==='ability'){ o.agent=p.agent; o.slot=p.slot; o.angle=Math.round(-90-viewRot());
+      const pd=effDef(o);
+      if(pd && pd.shape==='area'){ o.poly=[[o.x,o.y]]; const pre=snap(); s.objects.push(o); S.selected=o.id; setPending(null);
+        document.querySelectorAll('.abil,.agent-place,#btnSpike').forEach(b=>b.classList.remove('on'));
+        S.drag={kind:'areadraw', o, pre}; showHint('拖曳圈出範圍，放開完成'); renderObjects(); return; } }
     if(p.type==='spike'){ delete o.team; s.objects=s.objects.filter(x=>x.type!=='spike'); }
     const pre=snap(); s.objects.push(o); pushHistory(pre); markDirty();
     S.selected=o.id; setPending(null);
@@ -1067,18 +1106,27 @@ svg.addEventListener('pointermove', e=>{
     if(!d.moved && Math.hypot(dx,dy)*S.view.s<3) return;
     d.moved=true;
     if(o.type==='pen') o.pts=d.orig.pts.map(p=>[r1(p[0]+dx),r1(p[1]+dy)]);
-    else { o.x=r1(d.orig.x+dx); o.y=r1(d.orig.y+dy); if(o.type==='arrow'){ o.x2=r1(d.orig.x2+dx); o.y2=r1(d.orig.y2+dy); } }
+    else { o.x=r1(d.orig.x+dx); o.y=r1(d.orig.y+dy); if(o.type==='arrow'){ o.x2=r1(d.orig.x2+dx); o.y2=r1(d.orig.y2+dy); }
+      if(d.orig.path) o.path=d.orig.path.map(p=>[r1(p[0]+dx),r1(p[1]+dy)]); if(d.orig.poly) o.poly=d.orig.poly.map(p=>[r1(p[0]+dx),r1(p[1]+dy)]); }
     reqRender();
   } else if(d.kind==='handle'){
     const o=s.objects.find(x=>x.id===d.id); if(!o) return; const def=effDef(o); if(!def) return;
     const k=ppm(curMap()), dx=w.x-o.x, dy=w.y-o.y, dist=Math.hypot(dx,dy)/k, rnd=v=>Math.max(0.5, Math.round(v*20)/20);
     if(d.hk==='end'){
       o.angle=Math.round(Math.atan2(dy,dx)*180/Math.PI);
-      const L = (def.shape==='cross' || (def.shape==='rect'&&def.centered)) ? dist*2 : dist;
-      o.size=Object.assign({}, o.size, {len:rnd(L)});
-    } else if(d.hk==='radius'){ o.size=Object.assign({}, o.size, {r:rnd(dist)}); }
-    else if(d.hk==='width'){ const a=(o.angle||0)*Math.PI/180, perp=Math.abs(-dx*Math.sin(a)+dy*Math.cos(a))/k; o.size=Object.assign({}, o.size, {w:rnd(perp*2)}); }
+      if(def.adjust){ const L = (def.shape==='cross' || (def.shape==='rect'&&def.centered)) ? dist*2 : dist;
+        o.size=Object.assign({}, o.size, {len:Math.min(def.max||999, rnd(L))}); }
+    } else if(d.hk==='bend'){
+      const a=(o.angle||0)*Math.PI/180; const perp=(-dx*Math.sin(a)+dy*Math.cos(a))/k;
+      o.bend=Math.round(Math.max(-def.len*0.6, Math.min(def.len*0.6, perp))*10)/10;
+    } else if(d.hk==='pathend'){
+      const pts=pathPts(o), last=pts[pts.length-1], seg=Math.hypot(w.x-last[0], w.y-last[1]);
+      if(seg*S.view.s>4){ const used=polyLen(pts), remain=def.max*k-used;
+        if(remain>0.5){ const t=Math.min(1, remain/seg); (o.path ||= []).push([r1(last[0]+(w.x-last[0])*t), r1(last[1]+(w.y-last[1])*t)]); } }
+    }
     reqRender();
+  } else if(d.kind==='areadraw'){
+    const o=d.o, l=o.poly[o.poly.length-1]; if(Math.hypot(w.x-l[0],w.y-l[1])*S.view.s>4) o.poly.push([r1(w.x),r1(w.y)]); reqRender();
   } else if(d.kind==='draw'){
     const o=d.o;
     if(o.type==='pen'){ const l=o.pts[o.pts.length-1]; if(Math.hypot(w.x-l[0],w.y-l[1])*S.view.s>3) o.pts.push([r1(w.x),r1(w.y)]); }
@@ -1107,6 +1155,10 @@ function endPtr(e){
   if(d.kind==='ccustom'){ if(d.moved) persist(); else editCustomCallout(d.id); return; }
   if(d.kind==='pan' && d.addLabel && !d.moved && S.editCallouts){ addCustomCallout(d.w); return; }
   if(d.kind==='pan'){ if(!d.moved && S.selected){ S.selected=null; renderObjects(); } return; }
+  if(d.kind==='areadraw'){ showHint(null); const o=d.o, s=curStrat();
+    if(o.poly.length<3){ s.objects=s.objects.filter(x=>x!==o); S.selected=null; renderObjects(); return; }
+    const cx=o.poly.reduce((a,p)=>a+p[0],0)/o.poly.length, cy=o.poly.reduce((a,p)=>a+p[1],0)/o.poly.length; o.x=r1(cx); o.y=r1(cy);
+    pushHistory(d.pre); markDirty(); renderObjects(); return; }
   if(d.kind==='draw'){
     const o=d.o, s=curStrat();
     const tiny = o.type==='pen' ? o.pts.length<2 : Math.hypot(o.x2-o.x,o.y2-o.y)*S.view.s<8;
@@ -1194,14 +1246,14 @@ applyDock();
 $('btnUndo').onclick=undo; $('btnRedo').onclick=redo;
 $('btnClear').onclick=()=>{ if(!curStrat().objects.length) return; askConfirm('清空這套戰術上的所有物件？（可用 ↶ 復原）', ()=>{ S.selected=null; mutate(s=>{ s.objects=[]; }); }); };
 $('selDel').onclick=deleteSelected;
-$('selResize').onclick=()=>{ const id=S.selected; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(o) delete o.size; }); };
+$('selResize').onclick=()=>{ const id=S.selected; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(o){ delete o.size; delete o.bend; delete o.path; } }); };
 $('selCal').onclick=()=>{ const o=curStrat().objects.find(x=>x.id===S.selected); if(!o) return;
   $('btnSettings').click(); $('calAgent').value=o.agent; $('calAgent')._touched=true; renderCalib();
   setTimeout(()=>{ const el=document.getElementById('cal-'+o.slot); if(el){ el.scrollIntoView({block:'center'}); el.style.outline='2px solid var(--red)'; setTimeout(()=>el.style.outline='',1500); } },80); };
 $('selTeam').onclick=()=>{ const id=S.selected; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(o&&o.team) o.team=o.team==='ally'?'enemy':'ally'; }); };
 $('selDup').onclick=()=>{ const id=S.selected; let nid=null; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(!o) return; if(o.type==='spike') return;
   const c=JSON.parse(JSON.stringify(o)); c.id=nid=uid(); const off=12;
-  if(c.pts) c.pts=c.pts.map(p=>[p[0]+off,p[1]+off]); else { c.x+=off; c.y+=off; if(c.x2!=null){ c.x2+=off; c.y2+=off; } }
+  if(c.pts) c.pts=c.pts.map(p=>[p[0]+off,p[1]+off]); else { c.x+=off; c.y+=off; if(c.x2!=null){ c.x2+=off; c.y2+=off; } if(c.path) c.path=c.path.map(p=>[p[0]+off,p[1]+off]); if(c.poly) c.poly=c.poly.map(p=>[p[0]+off,p[1]+off]); }
   s.objects.push(c); }); if(nid){ S.selected=nid; renderObjects(); } };
 $('zIn').onclick=()=>zoomAt(W/2,H/2,1.3); $('zOut').onclick=()=>zoomAt(W/2,H/2,1/1.3); $('zFit').onclick=fitView;
 
@@ -1364,7 +1416,8 @@ function compactStrat(s){
   const R=Math.round, A=id=>S.agentById[id]?.en||id, SL=sl=>SLOT_KEY[sl]||sl;
   const o=s.objects.map(o=>{ const t=o.team==='enemy'?1:0;
     if(o.type==='agent') return ['a',A(o.agent),t,R(o.x),R(o.y)];
-    if(o.type==='ability') return o.size ? ['b',A(o.agent),SL(o.slot),t,R(o.x),R(o.y),R(o.angle||0),o.size] : ['b',A(o.agent),SL(o.slot),t,R(o.x),R(o.y),R(o.angle||0)];
+    if(o.type==='ability'){ const ext={}; if(o.path&&o.path.length) ext.p=[].concat(...o.path.map(p=>[R(p[0]),R(p[1])])); if(o.poly) ext.g=[].concat(...o.poly.map(p=>[R(p[0]),R(p[1])])); if(o.bend) ext.b=o.bend;
+      const b=['b',A(o.agent),SL(o.slot),t,R(o.x),R(o.y),R(o.angle||0)]; if(o.size||Object.keys(ext).length){ b.push(o.size||0); if(Object.keys(ext).length) b.push(ext); } return b; }
     if(o.type==='spike') return ['s',R(o.x),R(o.y)];
     if(o.type==='pen') return ['p',t].concat(...o.pts.map(p=>[R(p[0]),R(p[1])]));
     if(o.type==='arrow') return ['r',t,R(o.x),R(o.y),R(o.x2),R(o.y2)];
@@ -1378,7 +1431,9 @@ function expandStrat(d){
   const slotOf=k=>Object.keys(SLOT_KEY).find(x=>SLOT_KEY[x]===k)||k;
   const objs=(arr||[]).map(a=>{ const id=uid(), T=v=>v?'enemy':'ally'; switch(a[0]){
     case 'a': return {id,type:'agent',agent:ag(a[1]),team:T(a[2]),x:a[3],y:a[4]};
-    case 'b': { const o={id,type:'ability',agent:ag(a[1]),slot:slotOf(a[2]),team:T(a[3]),x:a[4],y:a[5],angle:a[6]}; if(a[7]&&typeof a[7]==='object') o.size=a[7]; return o; }
+    case 'b': { const o={id,type:'ability',agent:ag(a[1]),slot:slotOf(a[2]),team:T(a[3]),x:a[4],y:a[5],angle:a[6]}; if(a[7]&&typeof a[7]==='object') o.size=a[7];
+      const e=a[8]; const pairs=arr=>{ const r=[]; for(let i=0;i+1<arr.length;i+=2) r.push([arr[i],arr[i+1]]); return r; };
+      if(e&&typeof e==='object'){ if(Array.isArray(e.p)) o.path=pairs(e.p); if(Array.isArray(e.g)) o.poly=pairs(e.g); if(e.b) o.bend=e.b; } return o; }
     case 's': return {id,type:'spike',x:a[1],y:a[2]};
     case 'p': { const pts=[]; for(let k=2;k+1<a.length;k+=2) pts.push([a[k],a[k+1]]); return {id,type:'pen',team:T(a[1]),pts}; }
     case 'r': return {id,type:'arrow',team:T(a[1]),x:a[2],y:a[3],x2:a[4],y2:a[5]};
@@ -1513,8 +1568,8 @@ function renderCalib(){
   const a=S.agentById[sel.value]; if(!a) return;
   $('calList').innerHTML = a.abilities.map(ab=>{
     const def=abilDef(ab.en), shape=def?def.shape:'none', custom=!!(S.db.calib[ab.en]&&S.db.calib[ab.en].v&&Object.keys(S.db.calib[ab.en].v).length);
-    const opts=['none','circle','cone','rect','line','cross'].map(x=>`<option value="${x}" ${x===shape?'selected':''}>${x==='none'?'無範圍（只顯示圖示）':SHAPE_NAME[x]}</option>`).join('');
-    const inputs=def?SHAPE_PARAMS[shape].map(([k,l])=>`<label>${l}<input type="number" step="0.05" min="0" data-cal="${esc(ab.en)}" data-k="${k}" value="${def[k]}"></label>`).join(''):'';
+    const opts=['none','circle','cone','rect','line','cross','curve','path','area'].map(x=>`<option value="${x}" ${x===shape?'selected':''}>${x==='none'?'無範圍（只顯示圖示）':SHAPE_NAME[x]}</option>`).join('');
+    const inputs=def?paramsFor(def).map(([k,l])=>`<label>${l}<input type="number" step="0.05" min="0" data-cal="${esc(ab.en)}" data-k="${k}" value="${def[k]}"></label>`).join(''):'';
     const badge = def ? (custom?'<span class="badge ok">自訂</span>':'<span class="badge">待校準</span>') : '';
     return `<div class="cal" id="cal-${esc(ab.slot)}"><img src="${esc(ab.icon||'')}"><div class="nm">${ab.key} · ${esc(ab.tw)} ${badge}<small>${esc(ab.en)}</small></div>
       <select data-calshape="${esc(ab.en)}">${opts}</select><div class="params">${inputs}${custom?`<button class="tool" data-calreset="${esc(ab.en)}" style="height:32px">還原預設</button>`:''}</div></div>`;
