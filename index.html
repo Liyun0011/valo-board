@@ -459,6 +459,11 @@ const ABIL = {
 const SMOKE_LOOK = {'Ruse':'clove','Sky Smoke':'brim','Dark Cover':'omen','Nebula':'astra','Cove':'harbor','Waveform':'miks','Poison Cloud':'viper','Cloudburst':'jett','Cyber Cage':'cypher'};
 const SMOKE_HL = {miks:'#fff3a0',brim:'#ffffff',omen:'#6b4fa0',astra:'#ffcc80',harbor:'#bff4ff',viper:'#e8ff9a',jett:'#ffffff',cypher:'#ffffff'};
 const SMOKE_RIM = {miks:'#4f7f9a',brim:'#d9853b',omen:'#4a3474',astra:'#a64dd6',harbor:'#1f5f9a',viper:'#1e5f3e',jett:'#8fb6d6',cypher:'#9aa6b2'};
+/* 非傷害技能（偵查、減速、補血、控制等）預設淡色顯示，可在設定裡逐個切換 */
+['Recon Bolt','Haunt','Stealth Drone','Sonic Sensor','ALARMBOT','Alarmbot','Trademark','Rendezvous','ZERO/point','NULL/cmd','Regrowth','Stim Beacon',
+ 'Lockdown','Steel Garden','Interceptor','Dizzy','Seize','Chokehold','Slow Orb','GravNet','Nova Pulse','Gravity Well','Fault Line','Rolling Thunder',
+ 'Nightfall','Bassquake','Convergent Paths','Saturate','M-pulse','TURRET','Turret','Prowler','Owl Drone','Guiding Light','Wingman'].forEach(n=>{ if(ABIL[n]) ABIL[n].info=true; });
+['TURRET','Turret'].forEach(n=>{ if(ABIL[n]) delete ABIL[n].info; });
 const SHAPE_PARAMS = {circle:[['r','半徑']], cone:[['len','長度'],['deg','角度°']], rect:[['len','長度'],['w','寬度']], line:[['len','長度']], cross:[['len','每條長']], curve:[['len','長度'],['w','寬度']], path:[['max','最遠距離'],['endR','終點範圍半徑']], area:[]};
 function paramsFor(def){ const ps=[...(SHAPE_PARAMS[def.shape]||[])]; if(def.adjust && def.shape!=='path') ps.push(['max','上限']); return ps; }
 const SHAPE_NAME = {circle:'圓形', cone:'扇形', rect:'長方形', line:'直線', cross:'十字', curve:'可彎的牆', path:'路線箭頭', area:'自己畫範圍'};
@@ -867,7 +872,7 @@ function curveGeom(o, def, k){
 }
 function shapeSVG(o, def, k, col, acol){
   const dash = o.team==='enemy' ? `stroke-dasharray="${7/S.view.s} ${4/S.view.s}"` : '';
-  const fill = `fill="${acol}" fill-opacity=".3" stroke="${col}" stroke-width="${2.2/S.view.s}" ${dash}`;
+  const fill = def.info ? `fill="${acol}" fill-opacity=".1" stroke="${col}" stroke-opacity=".75" stroke-width="${1.6/S.view.s}" ${dash}` : `fill="${acol}" fill-opacity=".3" stroke="${col}" stroke-width="${2.2/S.view.s}" ${dash}`;
   if(def.shape==='circle'){
     const look = SMOKE_LOOK[def._en];
     if(look){
@@ -998,8 +1003,9 @@ function renderSelBar(){
   $('selInfo').innerHTML=info;
   $('selTeam').style.display = o.type==='spike'?'none':'';
   $('selCal').style.display = o.type==='ability'?'':'none';
-  $('selResize').style.display = (o.type==='ability'&&(o.size||o.bend||(o.path&&o.path.length)))?'':'none';
-  $('selResize').textContent = (o.type==='ability'&&o.path&&o.path.length)?'重畫路線':(o.bend?'拉直':'重設大小');
+  const isPath = o.type==='ability' && effDef(o)?.shape==='path';
+  $('selResize').style.display = (isPath || (o.type==='ability'&&(o.size||o.bend)))?'':'none';
+  $('selResize').textContent = isPath?'重畫路線':(o.bend?'拉直':'重設大小');
   bar.style.display='flex';
 }
 
@@ -1046,6 +1052,9 @@ svg.addEventListener('pointerdown', e=>{
   if(ptrs.size>2) return;
   if(S.shared){ S.drag={kind:'pan', p0:toSvg(e.clientX,e.clientY), v0:{...S.view}, moved:false}; return; }
   const w = toWorld(e.clientX,e.clientY), s=curStrat();
+  if(S.redrawPath){ const rp=S.redrawPath; S.redrawPath=null; showHint(null);
+    const o=curStrat().objects.find(x=>x.id===rp.id);
+    if(o){ S.selected=o.id; S.drag={kind:'handle', hk:'pathend', id:o.id, pre:rp.pre}; return; } }
   if(S.align){ S.drag={kind:'align', w0:w, t0:{...S.align.t}}; return; }
   if(S.editCallouts){
     const cEl=e.target.closest('[data-callout]');
@@ -1229,7 +1238,7 @@ $('abilityRow').addEventListener('click', e=>{
 });
 $('toolRow').addEventListener('click', e=>{ const b=e.target.closest('[data-tool]'); if(b) { setTool(b.dataset.tool); renderAbilities(); } });
 $('btnSpike').onclick=()=>{ const on=S.pending&&S.pending.type==='spike'; setPending(on?null:{type:'spike'},'Spike'); $('btnSpike').classList.toggle('on',!on); renderAbilities(); };
-$('hintCancel').onclick=()=>{ if(S.editCallouts){ toggleEditCallouts(false); return; } setTool('select'); renderAbilities(); };
+$('hintCancel').onclick=()=>{ if(S.redrawPath){ const rp=S.redrawPath; S.redrawPath=null; const o=curStrat().objects.find(x=>x.id===rp.id); if(o){ const old=JSON.parse(rp.pre).find(x=>x.id===rp.id); o.path=old&&old.path||[]; } showHint(null); renderObjects(); return; } if(S.editCallouts){ toggleEditCallouts(false); return; } setTool('select'); renderAbilities(); };
 function toggleEditCallouts(on){
   S.editCallouts=on; setTool('select'); S.selected=null;
   $('btnEditCallouts').classList.toggle('on',on);
@@ -1246,7 +1255,9 @@ applyDock();
 $('btnUndo').onclick=undo; $('btnRedo').onclick=redo;
 $('btnClear').onclick=()=>{ if(!curStrat().objects.length) return; askConfirm('清空這套戰術上的所有物件？（可用 ↶ 復原）', ()=>{ S.selected=null; mutate(s=>{ s.objects=[]; }); }); };
 $('selDel').onclick=deleteSelected;
-$('selResize').onclick=()=>{ const id=S.selected; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(o){ delete o.size; delete o.bend; delete o.path; } }); };
+$('selResize').onclick=()=>{ const id=S.selected, o=curStrat().objects.find(x=>x.id===id); if(!o) return;
+  if(effDef(o)?.shape==='path'){ S.redrawPath={id, pre:snap()}; o.path=[]; renderObjects(); showHint('在地圖上拖曳，畫出新路線'); return; }
+  mutate(s=>{ const x=s.objects.find(y=>y.id===id); if(x){ delete x.size; delete x.bend; delete x.path; } }); };
 $('selCal').onclick=()=>{ const o=curStrat().objects.find(x=>x.id===S.selected); if(!o) return;
   $('btnSettings').click(); $('calAgent').value=o.agent; $('calAgent')._touched=true; renderCalib();
   setTimeout(()=>{ const el=document.getElementById('cal-'+o.slot); if(el){ el.scrollIntoView({block:'center'}); el.style.outline='2px solid var(--red)'; setTimeout(()=>el.style.outline='',1500); } },80); };
@@ -1572,11 +1583,15 @@ function renderCalib(){
     const inputs=def?paramsFor(def).map(([k,l])=>`<label>${l}<input type="number" step="0.05" min="0" data-cal="${esc(ab.en)}" data-k="${k}" value="${def[k]}"></label>`).join(''):'';
     const badge = def ? (custom?'<span class="badge ok">自訂</span>':'<span class="badge">待校準</span>') : '';
     return `<div class="cal" id="cal-${esc(ab.slot)}"><img src="${esc(ab.icon||'')}"><div class="nm">${ab.key} · ${esc(ab.tw)} ${badge}<small>${esc(ab.en)}</small></div>
-      <select data-calshape="${esc(ab.en)}">${opts}</select><div class="params">${inputs}${custom?`<button class="tool" data-calreset="${esc(ab.en)}" style="height:32px">還原預設</button>`:''}</div></div>`;
+      <select data-calshape="${esc(ab.en)}">${opts}</select><div class="params">${inputs}${def?`<label><input type="checkbox" data-calinfo="${esc(ab.en)}" ${def.info?'checked':''}>淡色（非傷害）</label>`:''}${custom?`<button class="tool" data-calreset="${esc(ab.en)}" style="height:32px">還原預設</button>`:''}</div></div>`;
   }).join('');
 }
 $('calAgent').onchange=e=>{ e.target._touched=true; renderCalib(); };
 $('calList').addEventListener('change', e=>{
+  const ci=e.target.closest('[data-calinfo]');
+  if(ci){ const en=ci.dataset.calinfo, base=ABIL[en]||{}, cur=S.db.calib[en]||{v:{}}; const v=Object.assign({},cur.v);
+    if(!!base.info===ci.checked) delete v.info; else v.info=ci.checked;
+    S.db.calib[en]={v, updatedAt:Date.now()}; persist(); renderCalib(); renderObjects(); return; }
   const sh=e.target.closest('[data-calshape]');
   if(sh){ const en=sh.dataset.calshape, val=sh.value, base=ABIL[en];
     const v = (base && val===base.shape) ? {} : (val==='none' ? {shape:'none'} : Object.assign({shape:val}, SHAPE_DEFAULT[val]));
