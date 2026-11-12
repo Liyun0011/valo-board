@@ -198,6 +198,11 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .cal input{width:64px;height:32px;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:0 6px}
 .cal label{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:4px}
 textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:6px;font-size:11px;font-family:ui-monospace,monospace}
+.klist{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+.krow{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:13px;padding:3px 0}
+.kbtn{min-width:64px;height:30px;justify-content:center;font-family:ui-monospace,monospace}
+.kbtn.on{background:var(--warn);color:#2a1a00}
+#boxSel{position:absolute;border:1.5px dashed #ffd36b;background:rgba(255,211,107,.08);pointer-events:none;display:none}
 .cfm{display:flex;flex-direction:column;gap:12px;padding:16px}
 .cfm p{margin:0;font-size:14px;line-height:1.5}
 </style>
@@ -263,6 +268,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       </div>
       <div id="shareBanner"><span id="shareText"></span><button class="tool primary" id="shareSave">存到我的戰術</button><button class="tool" id="shareClose">關閉</button></div>
       <div id="agentPop"></div>
+      <div id="boxSel"></div>
       <div id="toast"></div>
       <div id="loading"><b>載入地圖與特務資料中…</b><span>資料來源：valorant-api.com</span></div>
     </div>
@@ -274,6 +280,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       <button class="tool" data-tool="pen" title="畫筆 (B)">✏️<span class="lbl"> 畫筆</span></button>
       <button class="tool" data-tool="arrow" title="箭頭 (A)">➜<span class="lbl"> 箭頭</span></button>
       <button class="tool" data-tool="ruler" title="測距（公尺）(M)">📏<span class="lbl"> 測距</span></button>
+      <button class="tool" data-tool="box" title="框選（多選）(R)">⬚<span class="lbl"> 框選</span></button>
       <button class="tool" data-tool="eraser" title="橡皮擦：擦畫筆和箭頭 (D)">🧽<span class="lbl"> 橡皮擦</span></button>
       <button class="tool" id="btnSpike" title="放置 Spike (S)">◆<span class="lbl"> Spike</span></button>
       <span class="sep"></span>
@@ -314,6 +321,12 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
         <p>單位都是公尺。技能範圍以「公尺」記錄，並依每張地圖的官方座標比例換算。這裡改的是預設大小；個別技能也可以在地圖上拖曳把手改大小（只影響那一個）。目前內建數值都是<b>未經驗證的估計值（待校準）</b>。沒有範圍的技能也可以在這裡自己選形狀。可以用「測距」工具對照遊戲內實際距離再修正；修改過的會標記為「自訂」並一起同步。</p>
         <div class="field"><label>選擇特務</label><select id="calAgent"></select></div>
         <div id="calList"></div>
+      </div>
+      <div class="sec">
+        <h3>⌨ 快捷鍵</h3>
+        <p>點右邊的按鍵格子，再按你想要的鍵。已經被用掉的鍵會自動交換。只存在這台裝置。</p>
+        <div id="keyList" class="klist"></div>
+        <div class="btns" style="margin-top:8px"><button class="tool" id="keyReset">全部恢復預設</button></div>
       </div>
       <div class="sec">
         <h3>🗺 自訂小地圖</h3>
@@ -391,12 +404,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
 <div class="modal" id="keysModal">
   <div class="card" style="width:min(460px,100%)">
     <div class="ph"><h2>⌨ 鍵盤快捷鍵</h2><button class="ibtn" data-close>✕</button></div>
-    <div class="body" style="gap:6px;font-size:13px;line-height:1.9">
-      <div><b>工具</b>　V 選取　B 畫筆　A 箭頭　D 橡皮擦　M 測距　S Spike</div>
-      <div><b>放置</b>　G 放置選中的特務　C／Q／E／X 他的技能　T 切換我方／敵方</div>
-      <div><b>編輯</b>　Delete 刪除選取　Ctrl+D 複製選取　Ctrl+Z 復原　Ctrl+Y 重做　Esc 取消</div>
-      <div><b>地圖</b>　F 置中　+／− 放大縮小　滾輪縮放　拖曳空白處移動</div>
-      <div style="color:var(--dim)">Mac 請把 Ctrl 換成 Cmd。按 ? 可以再打開這個視窗。</div>
+    <div class="body" style="gap:6px;font-size:13px;line-height:1.9"><div id="keysHelp" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
   </div>
 </div>
@@ -978,7 +986,7 @@ function renderObjects(){
   let sh='', ic='';
   const hs = 11/vs; // 觸控把手大小（螢幕約 11px）
   for(const o of s.objects){
-    const col=teamColor(o.team), sel = o.id===S.selected;
+    const col=teamColor(o.team), sel = o.id===S.selected || (S.multi&&S.multi.includes(o.id));
     const selRing = sel ? `<circle r="${(o.type==='agent'?17:13)+4/vs}" fill="none" stroke="#fff" stroke-width="${2.5/vs}"/>` : '';
     if(o.type==='agent'){
       const a=S.agentById[o.agent];
@@ -993,9 +1001,9 @@ function renderObjects(){
       ic += `<g class="obj" data-id="${o.id}" transform="translate(${r1(o.x)} ${r1(o.y)})"><g transform="rotate(${-R})">
         <circle r="12.5" fill="${acol}" stroke="${col}" stroke-width="3" ${o.team==='enemy'?'stroke-dasharray="4 2.5"':''}/>
         ${ab?`<image href="${esc(ab.icon)}" x="-8.5" y="-8.5" width="17" height="17" style="filter:brightness(0)"/>`:''}${selRing}</g></g>`;
-      if(sel && def && def.shape==='path'){ const pts=pathPts(o), used=polyLen(pts)/k, last=pts[pts.length-1];
+      if(sel && !(S.multi&&S.multi.length>1) && def && def.shape==='path'){ const pts=pathPts(o), used=polyLen(pts)/k, last=pts[pts.length-1];
         ic += `<g transform="translate(${last[0]} ${last[1]}) rotate(${-R})"><text y="${-16/vs}" text-anchor="middle" font-size="${12/vs}" font-weight="700" fill="#fff" stroke="#0b131b" stroke-width="${3/vs}" paint-order="stroke">${used.toFixed(1)} / ${def.max} m</text></g>`; }
-      if(sel) sizeHandles(o,def,k).forEach(h=>{
+      if(sel && !(S.multi&&S.multi.length>1)) sizeHandles(o,def,k).forEach(h=>{
         const sq = h.kind==='bend';
         ic += `<g data-handle="${o.id}" data-hk="${h.kind}" style="cursor:${h.kind==='bend'?'move':h.kind==='pathend'?'crosshair':'alias'}">${(h.kind==='end')?`<line x1="${o.x}" y1="${o.y}" x2="${h.x}" y2="${h.y}" stroke="#fff" stroke-opacity=".5" stroke-width="${1.5/vs}"/>`:''}<circle cx="${h.x}" cy="${h.y}" r="${hs*1.6}" fill="transparent"/>${sq?`<rect x="${h.x-hs*0.7}" y="${h.y-hs*0.7}" width="${hs*1.4}" height="${hs*1.4}" rx="${hs*0.25}" fill="#ffd36b" stroke="#0f1923" stroke-width="${2/vs}"/>`:`<circle cx="${h.x}" cy="${h.y}" r="${hs*0.8}" fill="#fff" stroke="#0f1923" stroke-width="${2/vs}"/>`}</g>`; });
     } else if(o.type==='spike'){
@@ -1021,7 +1029,13 @@ function renderRuler(){
     <g transform="translate(${(r.x1+r.x2)/2} ${(r.y1+r.y2)/2}) rotate(${-R})"><text font-size="${15/vs}" fill="#ece8e1" stroke="#0b131b" stroke-width="${4/vs}" paint-order="stroke" text-anchor="middle" dy="${-10/vs}" font-weight="900">${d.toFixed(1)} 公尺</text></g>`;
 }
 function renderSelBar(){
-  const bar=$('selBar'), s=curStrat(), o=s.objects.find(x=>x.id===S.selected);
+  const bar=$('selBar'), s=curStrat();
+  if(S.multi && S.multi.length>1){
+    $('selInfo').innerHTML=`<b>已選取 ${S.multi.length} 個</b><small>拖曳其中一個可以一起移動</small>`;
+    ['selTeam','selDup','selDel'].forEach(id=>$(id).style.display=''); ['selCal','selResize'].forEach(id=>$(id).style.display='none');
+    bar.style.display='flex'; return; }
+  ['selDup','selDel'].forEach(id=>$(id).style.display='');
+  const o=s.objects.find(x=>x.id===S.selected);
   if(!o){ bar.style.display='none'; return; }
   let info='';
   if(o.type==='agent'){ const a=S.agentById[o.agent]; info=`<b>${esc(a?a.tw:'特務')}</b><small>拖曳移動</small>`; }
@@ -1057,11 +1071,15 @@ function mutate(fn){ const pre=snap(); fn(curStrat()); if(snap()!==pre){ pushHis
 const ptrs = new Map();
 let rafPending=false;
 function reqRender(){ if(rafPending) return; rafPending=true; requestAnimationFrame(()=>{ rafPending=false; renderObjects(); renderRuler(); }); }
+function selIds(){ return (S.multi&&S.multi.length>1) ? S.multi.slice() : (S.selected?[S.selected]:[]); }
+function setMulti(ids){ ids=[...new Set(ids)]; S.multi=ids; S.selected=ids.length===1?ids[0]:(ids[0]||null); hideAgentPop(); renderObjects(); }
+function objScreen(o){ const pt=svg.createSVGPoint(), M=worldG.getScreenCTM(); const f=(x,y)=>{ pt.x=x; pt.y=y; const c=pt.matrixTransform(M); return [c.x,c.y]; };
+  if(o.type==='pen') return o.pts.map(p=>f(p[0],p[1])); if(o.type==='arrow') return [f(o.x,o.y),f(o.x2,o.y2)]; return [f(o.x,o.y)]; }
 function setTool(t){
   S.tool=t; S.pending=null; S.ruler=null; renderRuler();
   document.querySelectorAll('#toolRow [data-tool]').forEach(b=>b.classList.toggle('on', b.dataset.tool===t));
   document.querySelectorAll('.abil,#btnSpike').forEach(b=>b.classList.remove('on'));
-  const hints={pen:'在地圖上拖曳畫線', arrow:'在地圖上拖曳畫箭頭', ruler:'拖曳量測距離（公尺）', eraser:'拖過畫筆線條或箭頭就能擦掉（特務和技能不會被擦到）'};
+  const hints={box:'拖出一個框，框住的東西會被選起來', pen:'在地圖上拖曳畫線', arrow:'在地圖上拖曳畫箭頭', ruler:'拖曳量測距離（公尺）', eraser:'拖過畫筆線條或箭頭就能擦掉（特務和技能不會被擦到）'};
   showHint(hints[t]||null);
   svg.classList.toggle('placing', t!=='select');
 }
@@ -1121,11 +1139,15 @@ svg.addEventListener('pointerdown', e=>{
   if(S.tool==='pen'){ const o={id:uid(),type:'pen',team:S.ui.team,pts:[[r1(w.x),r1(w.y)]]}; S.drag={kind:'draw', o, pre:snap()}; s.objects.push(o); reqRender(); return; }
   if(S.tool==='arrow'){ const o={id:uid(),type:'arrow',team:S.ui.team,x:r1(w.x),y:r1(w.y),x2:r1(w.x),y2:r1(w.y)}; S.drag={kind:'draw', o, pre:snap()}; s.objects.push(o); reqRender(); return; }
   if(S.tool==='eraser'){ S.drag={kind:'erase', pre:snap(), n:0}; eraseAt(e.clientX,e.clientY); return; }
+  if(S.tool==='box'){ S.drag={kind:'box', x0:e.clientX, y0:e.clientY}; return; }
   if(S.tool==='ruler'){ S.ruler={x1:w.x,y1:w.y,x2:w.x,y2:w.y}; S.drag={kind:'ruler'}; renderRuler(); return; }
   const oEl = e.target.closest('[data-id]');
   if(oEl){
     const o=s.objects.find(x=>x.id===oEl.dataset.id);
-    if(o){ S.selected=o.id; S.drag={kind:'move', id:o.id, w0:w, orig:JSON.parse(JSON.stringify(o)), pre:snap(), moved:false}; renderObjects(); return; }
+    if(o && e.shiftKey){ const cur=selIds(); setMulti(cur.includes(o.id)?cur.filter(x=>x!==o.id):cur.concat(o.id)); return; }
+    if(o && S.multi && S.multi.length>1 && S.multi.includes(o.id)){
+      S.drag={kind:'multimove', w0:w, origs:s.objects.filter(x=>S.multi.includes(x.id)).map(x=>JSON.parse(JSON.stringify(x))), pre:snap(), moved:false}; return; }
+    if(o){ S.multi=[]; S.selected=o.id; S.drag={kind:'move', id:o.id, w0:w, orig:JSON.parse(JSON.stringify(o)), pre:snap(), moved:false}; renderObjects(); return; }
   }
   const p0=toSvg(e.clientX,e.clientY);
   S.drag={kind:'pan', p0, v0:{...S.view}, moved:false};
@@ -1139,6 +1161,10 @@ svg.addEventListener('pointermove', e=>{
     const [a,b]=[...ptrs.values()], dist=Math.hypot(a.x-b.x,a.y-b.y), mid=toSvg((a.x+b.x)/2,(a.y+b.y)/2);
     let k=dist/d.d0; const ns=Math.max(baseS*0.5,Math.min(baseS*8,d.v0.s*k)); k=ns/d.v0.s;
     S.view={s:ns, tx:mid.x-(d.m0.x-d.v0.tx)*k, ty:mid.y-(d.m0.y-d.v0.ty)*k}; S.userMoved=true; applyView(); return;
+  }
+  if(d.kind==='box'){
+    const r=$('stage').getBoundingClientRect(), b=$('boxSel'), x1=Math.min(d.x0,e.clientX), y1=Math.min(d.y0,e.clientY), x2=Math.max(d.x0,e.clientX), y2=Math.max(d.y0,e.clientY);
+    d.rect=[x1,y1,x2,y2]; Object.assign(b.style,{display:'block', left:(x1-r.left)+'px', top:(y1-r.top)+'px', width:(x2-x1)+'px', height:(y2-y1)+'px'}); return;
   }
   if(d.kind==='pan'){
     const p=toSvg(e.clientX,e.clientY), dx=p.x-d.p0.x, dy=p.y-d.p0.y;
@@ -1185,6 +1211,13 @@ svg.addEventListener('pointermove', e=>{
         if(remain>0.5){ const t=Math.min(1, remain/seg); (o.path ||= []).push([r1(last[0]+(w.x-last[0])*t), r1(last[1]+(w.y-last[1])*t)]); } }
     }
     reqRender();
+  } else if(d.kind==='multimove'){
+    const dx=w.x-d.w0.x, dy=w.y-d.w0.y; if(!d.moved && Math.hypot(dx,dy)*S.view.s<3) return; d.moved=true;
+    for(const or of d.origs){ const o=s.objects.find(x=>x.id===or.id); if(!o) continue;
+      if(o.type==='pen'){ o.pts=or.pts.map(p=>[r1(p[0]+dx),r1(p[1]+dy)]); continue; }
+      o.x=r1(or.x+dx); o.y=r1(or.y+dy); if(o.type==='arrow'){ o.x2=r1(or.x2+dx); o.y2=r1(or.y2+dy); }
+      if(or.path) o.path=or.path.map(p=>[r1(p[0]+dx),r1(p[1]+dy)]); if(or.poly) o.poly=or.poly.map(p=>[r1(p[0]+dx),r1(p[1]+dy)]); }
+    reqRender();
   } else if(d.kind==='areadraw'){
     const o=d.o, l=o.poly[o.poly.length-1]; if(Math.hypot(w.x-l[0],w.y-l[1])*S.view.s>4) o.poly.push([r1(w.x),r1(w.y)]); reqRender();
   } else if(d.kind==='draw'){
@@ -1216,7 +1249,11 @@ function endPtr(e){
   if(d.kind==='align') return;
   if(d.kind==='ccustom'){ if(d.moved) persist(); else editCustomCallout(d.id); return; }
   if(d.kind==='pan' && d.addLabel && !d.moved && S.editCallouts){ addCustomCallout(d.w); return; }
-  if(d.kind==='pan'){ if(!d.moved && S.selected){ S.selected=null; renderObjects(); } return; }
+  if(d.kind==='box'){ $('boxSel').style.display='none'; const R=d.rect; if(!R || (R[2]-R[0]<4 && R[3]-R[1]<4)){ setMulti([]); return; }
+    const ids=curStrat().objects.filter(o=>objScreen(o).some(([x,y])=>x>=R[0]&&x<=R[2]&&y>=R[1]&&y<=R[3])).map(o=>o.id);
+    setMulti(ids); if(ids.length) toast(`已選取 ${ids.length} 個`); return; }
+  if(d.kind==='multimove'){ if(d.moved){ pushHistory(d.pre); markDirty(); } renderObjects(); return; }
+  if(d.kind==='pan'){ if(!d.moved && (S.selected||(S.multi&&S.multi.length))){ S.selected=null; S.multi=[]; renderObjects(); } return; }
   if(d.kind==='areadraw'){ showHint(null); const o=d.o, s=curStrat();
     if(o.poly.length<3){ s.objects=s.objects.filter(x=>x!==o); S.selected=null; renderObjects(); return; }
     const cx=o.poly.reduce((a,p)=>a+p[0],0)/o.poly.length, cy=o.poly.reduce((a,p)=>a+p[1],0)/o.poly.length; o.x=r1(cx); o.y=r1(cy);
@@ -1254,31 +1291,74 @@ svg.addEventListener('pointercancel', endPtr);
 svg.addEventListener('wheel', e=>{ e.preventDefault(); const p=toSvg(e.clientX,e.clientY); zoomAt(p.x,p.y,Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0015))); }, {passive:false});
 document.addEventListener('gesturestart', e=>e.preventDefault());
 
-function deleteSelected(){ if(!S.selected) return; const id=S.selected; S.selected=null; mutate(s=>{ s.objects=s.objects.filter(o=>o.id!==id); }); }
-document.addEventListener('keydown', e=>{
-  if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || S.shared) return;
-  if((e.key==='Delete'||e.key==='Backspace') && S.selected){ e.preventDefault(); deleteSelected(); }
-  else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); }
-  else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); }
-  else if(e.key==='Escape'){ hideAgentPop(); setTool('select'); S.selected=null; renderObjects(); showModal('keysModal',false); }
-  else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='d'){ e.preventDefault(); if(S.selected) $('selDup').click(); }
-  else if(e.metaKey||e.ctrlKey||e.altKey) return;
-  else if(e.key==='?'){ showModal('keysModal',true); }
-  else if({v:1,b:1,a:1,d:1,m:1}[e.key.toLowerCase()] && e.key.length===1){ setTool({v:'select',b:'pen',a:'arrow',d:'eraser',m:'ruler'}[e.key.toLowerCase()]); renderAbilities(); }
-  else if(['1','2','3','4','5'].includes(e.key)){ setTool(['select','pen','arrow','ruler','eraser'][+e.key-1]); renderAbilities(); }
-  else if(e.key.toLowerCase()==='s' || e.key==='6'){ $('btnSpike').click(); }
-  else if(e.key.toLowerCase()==='t'){ S.ui.team=S.ui.team==='enemy'?'ally':'enemy'; lsSet(LS_UI,S.ui); setSeg('teamSeg',S.ui.team); toast(S.ui.team==='enemy'?'目前放置：敵方':'目前放置：我方'); }
-  else if(e.key.toLowerCase()==='f'){ fitView(); }
-  else if(e.key==='+'||e.key==='='){ zoomAt(W/2,H/2,1.25); }
-  else if(e.key==='-'||e.key==='_'){ zoomAt(W/2,H/2,0.8); }
-  else if('cqex'.includes(e.key.toLowerCase()) && e.key.length===1){
+function deleteSelected(){ const ids=selIds(); if(!ids.length) return; S.selected=null; S.multi=[]; mutate(s=>{ s.objects=s.objects.filter(o=>!ids.includes(o.id)); }); }
+/* ---- 快捷鍵（可自訂，存在這台裝置） ---- */
+const KEY_ACTIONS=[
+  ['select','選取／移動','v'],['box','框選（多選）','r'],['pen','畫筆','b'],['arrow','箭頭','a'],['eraser','橡皮擦','d'],['ruler','測距','m'],
+  ['spike','放 Spike','s'],['agent','放選中的特務','g'],['abilC','技能 C','c'],['abilQ','技能 Q','q'],['abilE','技能 E','e'],['abilX','技能 X','x'],
+  ['team','切換我方／敵方','t'],['fit','地圖置中','f'],['zoomIn','放大','='],['zoomOut','縮小','-'],['help','快捷鍵表','?']];
+function keyMap(){ const m={}; KEY_ACTIONS.forEach(([id,,def])=>{ m[id]=(S.ui.keys&&S.ui.keys[id]!=null)?S.ui.keys[id]:def; }); return m; }
+function keyLabel(k){ return !k?'（無）': k===' '?'空白鍵': k==='='?'＋': k==='-'?'－': k.length===1?k.toUpperCase(): k; }
+function normKey(e){ if(e.key==='+') return '='; if(e.key==='_') return '-'; return e.key.length===1 ? e.key.toLowerCase() : e.key; }
+function runAction(id){
+  if(['select','box','pen','arrow','eraser','ruler'].includes(id)){ setTool(id); renderAbilities(); return; }
+  if(id==='spike'){ $('btnSpike').click(); return; }
+  if(id==='team'){ S.ui.team=S.ui.team==='enemy'?'ally':'enemy'; lsSet(LS_UI,S.ui); setSeg('teamSeg',S.ui.team); toast(S.ui.team==='enemy'?'目前放置：敵方':'目前放置：我方'); return; }
+  if(id==='fit'){ fitView(); return; }
+  if(id==='zoomIn'){ zoomAt(W/2,H/2,1.25); return; }
+  if(id==='zoomOut'){ zoomAt(W/2,H/2,0.8); return; }
+  if(id==='help'){ renderKeysHelp(); showModal('keysModal',true); return; }
+  if(id==='agent'){ if(!S.selAgent){ toast('先選一位特務'); return; } $('abilityRow').querySelector('[data-place-agent]')?.click(); return; }
+  if(id.startsWith('abil')){
     const a=S.agentById[S.selAgent]; if(!a){ toast('先選一位特務'); return; }
-    const ab=a.abilities.find(x=>x.key===e.key.toUpperCase()); if(!ab) return;
+    const ab=a.abilities.find(x=>x.key===id.slice(4)); if(!ab) return;
     const team=S.popFor&&S.popFor.agent===a.id ? S.popFor.team : undefined; hideAgentPop();
     setPending({type:'ability', agent:a.id, slot:ab.slot, team}, ab.tw); renderAbilities();
   }
-  else if(e.key.toLowerCase()==='g'){ if(!S.selAgent){ toast('先選一位特務'); return; } $('abilityRow').querySelector('[data-place-agent]')?.click(); }
+}
+document.addEventListener('keydown', e=>{
+  if(S.capKey){ return; }
+  if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || S.shared) return;
+  if((e.key==='Delete'||e.key==='Backspace') && (S.selected||selIds().length)){ e.preventDefault(); deleteSelected(); }
+  else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); }
+  else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); }
+  else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){ e.preventDefault(); setMulti(curStrat().objects.map(o=>o.id)); }
+  else if(e.key==='Escape'){ hideAgentPop(); setTool('select'); S.selected=null; S.multi=[]; renderObjects(); showModal('keysModal',false); }
+  else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='d'){ e.preventDefault(); if(selIds().length) $('selDup').click(); }
+  else if(e.metaKey||e.ctrlKey||e.altKey) return;
+  else {
+    const k=normKey(e), m=keyMap(), id=Object.keys(m).find(a=>m[a]===k);
+    if(id){ e.preventDefault(); runAction(id); return; }
+    if(['1','2','3','4','5'].includes(e.key)){ setTool(['select','pen','arrow','ruler','eraser'][+e.key-1]); renderAbilities(); }
+  }
 });
+function renderKeysHelp(){
+  const m=keyMap(), row=(ids)=>ids.map(id=>{ const a=KEY_ACTIONS.find(x=>x[0]===id); return `${keyLabel(m[id])} ${a[1]}`; }).join('　');
+  $('keysHelp').innerHTML=`<div><b>工具</b>　${row(['select','box','pen','arrow','eraser','ruler','spike'])}</div>
+    <div><b>放置</b>　${row(['agent','abilC','abilQ','abilE','abilX','team'])}</div>
+    <div><b>多選</b>　Shift＋點擊 加選／取消　Ctrl+A 全選</div>
+    <div><b>編輯</b>　Delete 刪除選取　Ctrl+D 複製選取　Ctrl+Z 復原　Ctrl+Y 重做　Esc 取消</div>
+    <div><b>地圖</b>　${row(['fit','zoomIn','zoomOut'])}　滾輪縮放　拖曳空白處移動</div>
+    <div style="color:var(--dim)">Mac 請把 Ctrl 換成 Cmd。快捷鍵可以在 ⚙ 設定 → ⌨ 快捷鍵 修改。</div>`;
+}
+function renderKeySettings(){
+  const m=keyMap();
+  $('keyList').innerHTML=KEY_ACTIONS.map(([id,name])=>`<div class="krow"><span>${name}</span><button class="tool kbtn${S.capKey===id?' on':''}" data-key="${id}">${S.capKey===id?'請按一個鍵…':keyLabel(m[id])}</button></div>`).join('');
+}
+$('keyList').addEventListener('click',e=>{ const b=e.target.closest('[data-key]'); if(!b) return; S.capKey = S.capKey===b.dataset.key ? null : b.dataset.key; renderKeySettings(); });
+document.addEventListener('keydown', e=>{
+  if(!S.capKey) return; e.preventDefault(); e.stopPropagation();
+  const id=S.capKey; S.capKey=null;
+  if(e.key==='Escape'){ renderKeySettings(); return; }
+  if(['Shift','Control','Alt','Meta','Delete','Backspace','Tab','Enter'].includes(e.key)){ toast('這個鍵不能用'); renderKeySettings(); return; }
+  const k=normKey(e), m=keyMap(); S.ui.keys=Object.assign({}, S.ui.keys);
+  const other=Object.keys(m).find(a=>a!==id && m[a]===k); if(other){ S.ui.keys[other]=m[id]; toast(`已和「${KEY_ACTIONS.find(x=>x[0]===other)[1]}」交換`); }
+  S.ui.keys[id]=k; lsSet(LS_UI,S.ui); renderKeySettings(); renderKeysHelp(); updToolTitles();
+}, true);
+$('keyReset').onclick=()=>{ S.ui.keys={}; lsSet(LS_UI,S.ui); S.capKey=null; renderKeySettings(); renderKeysHelp(); updToolTitles(); toast('已恢復預設快捷鍵'); };
+function updToolTitles(){ const m=keyMap(), names={select:'選取／移動',box:'框選（多選）',pen:'畫筆',arrow:'箭頭',eraser:'橡皮擦：擦畫筆和箭頭',ruler:'測距（公尺）'};
+  document.querySelectorAll('#toolRow [data-tool]').forEach(b=>{ const t=b.dataset.tool; if(names[t]) b.title=`${names[t]} (${keyLabel(m[t])})`; });
+  $('btnSpike').title=`放置 Spike (${keyLabel(m.spike)})`; }
 
 /* 橡皮擦：只擦畫筆和箭頭。畫筆只擦碰到的那一段（會分成好幾段），箭頭碰到就整支刪 */
 function eraseAt(cx,cy){
@@ -1372,12 +1452,13 @@ $('selResize').onclick=()=>{ const id=S.selected, o=curStrat().objects.find(x=>x
 $('selCal').onclick=()=>{ const o=curStrat().objects.find(x=>x.id===S.selected); if(!o) return;
   $('btnSettings').click(); $('calAgent').value=o.agent; $('calAgent')._touched=true; renderCalib();
   setTimeout(()=>{ const el=document.getElementById('cal-'+o.slot); if(el){ el.scrollIntoView({block:'center'}); el.style.outline='2px solid var(--red)'; setTimeout(()=>el.style.outline='',1500); } },80); };
-$('selTeam').onclick=()=>{ const id=S.selected; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(o&&o.team) o.team=o.team==='ally'?'enemy':'ally'; }); };
-$('selDup').onclick=()=>{ const id=S.selected; let nid=null; mutate(s=>{ const o=s.objects.find(x=>x.id===id); if(!o) return; if(o.type==='spike') return;
-  const c=JSON.parse(JSON.stringify(o)); c.id=nid=uid(); const off=12;
-  if(c.pts) c.pts=c.pts.map(p=>[p[0]+off,p[1]+off]); else { c.x+=off; c.y+=off; if(c.x2!=null){ c.x2+=off; c.y2+=off; } if(c.path) c.path=c.path.map(p=>[p[0]+off,p[1]+off]); if(c.poly) c.poly=c.poly.map(p=>[p[0]+off,p[1]+off]); }
-  s.objects.push(c); }); if(nid){ S.selected=nid; renderObjects(); } };
-$('btnKeys').onclick=()=>showModal('keysModal',true);
+$('selTeam').onclick=()=>{ const ids=selIds(); mutate(s=>{ s.objects.filter(x=>ids.includes(x.id)).forEach(o=>{ if(o.team) o.team=o.team==='ally'?'enemy':'ally'; }); }); };
+$('selDup').onclick=()=>{ const ids=selIds(); const nids=[]; mutate(s=>{ const off=12;
+  s.objects.filter(o=>ids.includes(o.id) && o.type!=='spike').forEach(o=>{ const c=JSON.parse(JSON.stringify(o)); c.id=uid(); nids.push(c.id);
+    if(c.pts) c.pts=c.pts.map(p=>[p[0]+off,p[1]+off]); else { c.x+=off; c.y+=off; if(c.x2!=null){ c.x2+=off; c.y2+=off; } if(c.path) c.path=c.path.map(p=>[p[0]+off,p[1]+off]); if(c.poly) c.poly=c.poly.map(p=>[p[0]+off,p[1]+off]); }
+    s.objects.push(c); }); });
+  if(nids.length) setMulti(nids); };
+$('btnKeys').onclick=()=>{ renderKeysHelp(); showModal('keysModal',true); };
 $('zIn').onclick=()=>zoomAt(W/2,H/2,1.3); $('zOut').onclick=()=>zoomAt(W/2,H/2,1/1.3); $('zFit').onclick=fitView;
 
 /* ---------------- 頂部列 ---------------- */
@@ -1665,7 +1746,7 @@ $('importFile').onchange=async e=>{
 /* ---------------- 設定 ---------------- */
 function showModal(id,o){ $(id).classList.toggle('show',o); }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{ if(e.target===m||e.target.closest('[data-close]')) showModal(m.id,false); }));
-$('btnSettings').onclick=()=>{ $('ghtOwner').value=GHT.owner; $('ghtRepo').value=GHT.repo; $('ghtToken').value=GHT.token?'••••••••':''; $('nickName').value=S.ui.nick||''; if(teamReady()&&!S.teamErr) $('teamMsg').textContent='目前連線：'+GHT.owner+'/'+GHT.repo; $('syncSummary').textContent = (ghReady()?'私人：'+GH.repo:'私人：未設定')+'｜'+(teamReady()?'隊伍：'+GHT.owner:'隊伍：未設定'); if(!ghReady()) $('personalSec').open=true; const gv=lsGet(LS_CACHE,null)?.ver; if(gv) $('gameVer').textContent='目前地圖資料版本：'+gv+'。遊戲版本一更新，網站會自動重新下載；如果地圖看起來還是舊的，可以手動重新下載。'; $('ghOwner').value=GH.owner; $('ghRepo').value=GH.repo; $('ghToken').value=GH.token?'••••••••':''; renderCalib(); showModal('settingsModal',true);
+$('btnSettings').onclick=()=>{ S.capKey=null; renderKeySettings(); $('ghtOwner').value=GHT.owner; $('ghtRepo').value=GHT.repo; $('ghtToken').value=GHT.token?'••••••••':''; $('nickName').value=S.ui.nick||''; if(teamReady()&&!S.teamErr) $('teamMsg').textContent='目前連線：'+GHT.owner+'/'+GHT.repo; $('syncSummary').textContent = (ghReady()?'私人：'+GH.repo:'私人：未設定')+'｜'+(teamReady()?'隊伍：'+GHT.owner:'隊伍：未設定'); if(!ghReady()) $('personalSec').open=true; const gv=lsGet(LS_CACHE,null)?.ver; if(gv) $('gameVer').textContent='目前地圖資料版本：'+gv+'。遊戲版本一更新，網站會自動重新下載；如果地圖看起來還是舊的，可以手動重新下載。'; $('ghOwner').value=GH.owner; $('ghRepo').value=GH.repo; $('ghToken').value=GH.token?'••••••••':''; renderCalib(); showModal('settingsModal',true);
   $('syncMsg').textContent = ghReady()?`目前連線：${GH.owner}/${GH.repo}`:'尚未設定，戰術目前只存在這台裝置。'; };
 $('ghSave').onclick=()=>{
   GH.owner=$('ghOwner').value.trim(); GH.repo=$('ghRepo').value.trim();
@@ -1762,7 +1843,7 @@ async function boot(){
   if(!list.length) lsSet(LS_DB,S.db);
   $('loading').style.display='none';
   fitView(); renderAgents(); renderAbilities(); openStrat(S.curId);
-  S.booted=true; updSyncBtn();
+  S.booted=true; updSyncBtn(); updToolTitles();
   setStatus(ghReady()?'☁ 準備同步…':'✓ 已儲存在此裝置');
   await checkHash();
   if(document.fonts?.ready) document.fonts.ready.then(()=>{ if(!S.userMoved) fitView(); });
