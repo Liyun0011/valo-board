@@ -250,7 +250,8 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       <div id="zoomCtl">
         <button class="ibtn" id="zIn" title="放大">＋</button>
         <button class="ibtn" id="zOut" title="縮小">－</button>
-        <button class="ibtn" id="zFit" title="置中">⤢</button>
+        <button class="ibtn" id="zFit" title="置中 (F)">⤢</button>
+        <button class="ibtn" id="btnKeys" title="快捷鍵 (?)">⌨</button>
       </div>
       <div id="selBar">
         <div class="info" id="selInfo"></div>
@@ -269,16 +270,17 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
 
   <footer id="dock">
     <div class="row" id="toolRow">
-      <button class="tool on" data-tool="select" title="選取／移動">✋<span class="lbl"> 選取</span></button>
-      <button class="tool" data-tool="pen" title="畫筆">✏️<span class="lbl"> 畫筆</span></button>
-      <button class="tool" data-tool="arrow" title="箭頭">➜<span class="lbl"> 箭頭</span></button>
-      <button class="tool" data-tool="ruler" title="測距（公尺）">📏<span class="lbl"> 測距</span></button>
-      <button class="tool" id="btnSpike" title="放置 Spike">◆<span class="lbl"> Spike</span></button>
+      <button class="tool on" data-tool="select" title="選取／移動 (V)">✋<span class="lbl"> 選取</span></button>
+      <button class="tool" data-tool="pen" title="畫筆 (B)">✏️<span class="lbl"> 畫筆</span></button>
+      <button class="tool" data-tool="arrow" title="箭頭 (A)">➜<span class="lbl"> 箭頭</span></button>
+      <button class="tool" data-tool="ruler" title="測距（公尺）(M)">📏<span class="lbl"> 測距</span></button>
+      <button class="tool" data-tool="eraser" title="橡皮擦：擦畫筆和箭頭 (D)">🧽<span class="lbl"> 橡皮擦</span></button>
+      <button class="tool" id="btnSpike" title="放置 Spike (S)">◆<span class="lbl"> Spike</span></button>
       <span class="sep"></span>
       <div class="seg team" id="teamSeg"><button data-v="ally">友方</button><button data-v="enemy">敵方</button></div>
       <span class="sep"></span>
-      <button class="tool" id="btnUndo" title="復原">↶</button>
-      <button class="tool" id="btnRedo" title="重做">↷</button>
+      <button class="tool" id="btnUndo" title="復原 (Ctrl+Z)">↶</button>
+      <button class="tool" id="btnRedo" title="重做 (Ctrl+Y)">↷</button>
       <button class="tool" id="btnClear" title="清空">🗑<span class="lbl"> 清空</span></button>
       <span class="spacer"></span>
       <button class="tool" id="btnDock" title="收合特務列，讓地圖更大">▾ 收合</button>
@@ -383,6 +385,18 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       <div class="btns"><button class="tool primary" id="importOpen">開啟</button><button class="tool" id="importPick">選擇分享檔…</button></div>
       <input type="file" id="importShareFile" accept="application/json,.json" hidden>
       <div id="importMsg" style="font-size:12px;color:var(--warn)"></div>
+    </div>
+  </div>
+</div>
+<div class="modal" id="keysModal">
+  <div class="card" style="width:min(460px,100%)">
+    <div class="ph"><h2>⌨ 鍵盤快捷鍵</h2><button class="ibtn" data-close>✕</button></div>
+    <div class="body" style="gap:6px;font-size:13px;line-height:1.9">
+      <div><b>工具</b>　V 選取　B 畫筆　A 箭頭　D 橡皮擦　M 測距　S Spike</div>
+      <div><b>放置</b>　G 放置選中的特務　C／Q／E／X 他的技能　T 切換我方／敵方</div>
+      <div><b>編輯</b>　Delete 刪除選取　Ctrl+D 複製選取　Ctrl+Z 復原　Ctrl+Y 重做　Esc 取消</div>
+      <div><b>地圖</b>　F 置中　+／− 放大縮小　滾輪縮放　拖曳空白處移動</div>
+      <div style="color:var(--dim)">Mac 請把 Ctrl 換成 Cmd。按 ? 可以再打開這個視窗。</div>
     </div>
   </div>
 </div>
@@ -1047,7 +1061,7 @@ function setTool(t){
   S.tool=t; S.pending=null; S.ruler=null; renderRuler();
   document.querySelectorAll('#toolRow [data-tool]').forEach(b=>b.classList.toggle('on', b.dataset.tool===t));
   document.querySelectorAll('.abil,#btnSpike').forEach(b=>b.classList.remove('on'));
-  const hints={pen:'在地圖上拖曳畫線', arrow:'在地圖上拖曳畫箭頭', ruler:'拖曳量測距離（公尺）'};
+  const hints={pen:'在地圖上拖曳畫線', arrow:'在地圖上拖曳畫箭頭', ruler:'拖曳量測距離（公尺）', eraser:'拖過畫筆線條或箭頭就能擦掉（特務和技能不會被擦到）'};
   showHint(hints[t]||null);
   svg.classList.toggle('placing', t!=='select');
 }
@@ -1106,6 +1120,7 @@ svg.addEventListener('pointerdown', e=>{
   }
   if(S.tool==='pen'){ const o={id:uid(),type:'pen',team:S.ui.team,pts:[[r1(w.x),r1(w.y)]]}; S.drag={kind:'draw', o, pre:snap()}; s.objects.push(o); reqRender(); return; }
   if(S.tool==='arrow'){ const o={id:uid(),type:'arrow',team:S.ui.team,x:r1(w.x),y:r1(w.y),x2:r1(w.x),y2:r1(w.y)}; S.drag={kind:'draw', o, pre:snap()}; s.objects.push(o); reqRender(); return; }
+  if(S.tool==='eraser'){ S.drag={kind:'erase', pre:snap(), n:0}; eraseAt(e.clientX,e.clientY); return; }
   if(S.tool==='ruler'){ S.ruler={x1:w.x,y1:w.y,x2:w.x,y2:w.y}; S.drag={kind:'ruler'}; renderRuler(); return; }
   const oEl = e.target.closest('[data-id]');
   if(oEl){
@@ -1178,6 +1193,7 @@ svg.addEventListener('pointermove', e=>{
     else { o.x2=r1(w.x); o.y2=r1(w.y); }
     reqRender();
   } else if(d.kind==='ruler'){ S.ruler.x2=w.x; S.ruler.y2=w.y; reqRender(); }
+  else if(d.kind==='erase'){ eraseAt(e.clientX,e.clientY); }
   else if(d.kind==='align'){ S.align.t.x=r1(d.t0.x+w.x-d.w0.x); S.align.t.y=r1(d.t0.y+w.y-d.w0.y); renderMapImage(); }
   else if(d.kind==='ccustom'){
     const m=curMap(), e0=customCallouts(m); e0.custom[d.id]=Object.assign({}, e0.custom[d.id], {x:r1(w.x+d.off.x), y:r1(w.y+d.off.y)}); e0.updatedAt=Date.now(); d.moved=true; renderCallouts();
@@ -1195,6 +1211,7 @@ function endPtr(e){
   if(d.kind==='pinch'){ if(ptrs.size===0) S.drag=null; else S.drag={kind:'idle'}; return; }
   if(ptrs.size>0) return;
   S.drag=null;
+  if(d.kind==='erase'){ $('rulerG').innerHTML=''; if(d.n){ pushHistory(d.pre); markDirty(); } renderObjects(); return; }
   if(d.kind==='callout'){ if(d.moved) persist(); else renameCallout(d.i); return; }
   if(d.kind==='align') return;
   if(d.kind==='ccustom'){ if(d.moved) persist(); else editCustomCallout(d.id); return; }
@@ -1243,8 +1260,47 @@ document.addEventListener('keydown', e=>{
   if((e.key==='Delete'||e.key==='Backspace') && S.selected){ e.preventDefault(); deleteSelected(); }
   else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); }
   else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); }
-  else if(e.key==='Escape'){ hideAgentPop(); setTool('select'); S.selected=null; renderObjects(); }
+  else if(e.key==='Escape'){ hideAgentPop(); setTool('select'); S.selected=null; renderObjects(); showModal('keysModal',false); }
+  else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='d'){ e.preventDefault(); if(S.selected) $('selDup').click(); }
+  else if(e.metaKey||e.ctrlKey||e.altKey) return;
+  else if(e.key==='?'){ showModal('keysModal',true); }
+  else if({v:1,b:1,a:1,d:1,m:1}[e.key.toLowerCase()] && e.key.length===1){ setTool({v:'select',b:'pen',a:'arrow',d:'eraser',m:'ruler'}[e.key.toLowerCase()]); renderAbilities(); }
+  else if(['1','2','3','4','5'].includes(e.key)){ setTool(['select','pen','arrow','ruler','eraser'][+e.key-1]); renderAbilities(); }
+  else if(e.key.toLowerCase()==='s' || e.key==='6'){ $('btnSpike').click(); }
+  else if(e.key.toLowerCase()==='t'){ S.ui.team=S.ui.team==='enemy'?'ally':'enemy'; lsSet(LS_UI,S.ui); setSeg('teamSeg',S.ui.team); toast(S.ui.team==='enemy'?'目前放置：敵方':'目前放置：我方'); }
+  else if(e.key.toLowerCase()==='f'){ fitView(); }
+  else if(e.key==='+'||e.key==='='){ zoomAt(W/2,H/2,1.25); }
+  else if(e.key==='-'||e.key==='_'){ zoomAt(W/2,H/2,0.8); }
+  else if('cqex'.includes(e.key.toLowerCase()) && e.key.length===1){
+    const a=S.agentById[S.selAgent]; if(!a){ toast('先選一位特務'); return; }
+    const ab=a.abilities.find(x=>x.key===e.key.toUpperCase()); if(!ab) return;
+    const team=S.popFor&&S.popFor.agent===a.id ? S.popFor.team : undefined; hideAgentPop();
+    setPending({type:'ability', agent:a.id, slot:ab.slot, team}, ab.tw); renderAbilities();
+  }
+  else if(e.key.toLowerCase()==='g'){ if(!S.selAgent){ toast('先選一位特務'); return; } $('abilityRow').querySelector('[data-place-agent]')?.click(); }
 });
+
+/* 橡皮擦：只擦畫筆和箭頭。畫筆只擦碰到的那一段（會分成好幾段），箭頭碰到就整支刪 */
+function eraseAt(cx,cy){
+  const w=toWorld(cx,cy), r=12/S.view.s, s=curStrat(); let changed=false;
+  const near=(p)=>Math.hypot(p[0]-w.x,p[1]-w.y)<r;
+  const segDist=(ax,ay,bx,by)=>{ const vx=bx-ax, vy=by-ay, L2=vx*vx+vy*vy; let t=L2?((w.x-ax)*vx+(w.y-ay)*vy)/L2:0; t=Math.max(0,Math.min(1,t)); return Math.hypot(ax+vx*t-w.x, ay+vy*t-w.y); };
+  const out=[];
+  for(const o of s.objects){
+    if(o.type==='arrow'){ if(segDist(o.x,o.y,o.x2,o.y2)<r){ changed=true; if(S.selected===o.id) S.selected=null; continue; } out.push(o); continue; }
+    if(o.type!=='pen'){ out.push(o); continue; }
+    // 先把稀疏的線段補點，擦得比較準
+    const dense=[]; for(let i=0;i<o.pts.length;i++){ const p=o.pts[i]; if(i){ const q=o.pts[i-1], L=Math.hypot(p[0]-q[0],p[1]-q[1]), n=Math.floor(L/(r*0.5)); for(let k=1;k<n;k++) dense.push([r1(q[0]+(p[0]-q[0])*k/n), r1(q[1]+(p[1]-q[1])*k/n)]); } dense.push(p); }
+    if(!dense.some(near)){ out.push(o); continue; }
+    changed=true; let cur=[], first=true;
+    const flush=()=>{ if(cur.length>=2){ out.push(Object.assign({}, o, {id:first?o.id:uid(), pts:cur})); first=false; } cur=[]; };
+    for(const p of dense){ if(near(p)) flush(); else cur.push(p); }
+    flush(); if(S.selected===o.id) S.selected=null;
+  }
+  if(changed){ s.objects=out; if(S.drag) S.drag.n++; renderObjects(); }
+  // 顯示橡皮擦範圍
+  $('rulerG').innerHTML=`<circle cx="${w.x}" cy="${w.y}" r="${r}" fill="rgba(255,255,255,.12)" stroke="#fff" stroke-width="${1.5/S.view.s}"/>`;
+}
 
 /* ---------------- 底部工具列 ---------------- */
 const ROLE_ORDER=['Duelist','Initiator','Controller','Sentinel'];
@@ -1321,6 +1377,7 @@ $('selDup').onclick=()=>{ const id=S.selected; let nid=null; mutate(s=>{ const o
   const c=JSON.parse(JSON.stringify(o)); c.id=nid=uid(); const off=12;
   if(c.pts) c.pts=c.pts.map(p=>[p[0]+off,p[1]+off]); else { c.x+=off; c.y+=off; if(c.x2!=null){ c.x2+=off; c.y2+=off; } if(c.path) c.path=c.path.map(p=>[p[0]+off,p[1]+off]); if(c.poly) c.poly=c.poly.map(p=>[p[0]+off,p[1]+off]); }
   s.objects.push(c); }); if(nid){ S.selected=nid; renderObjects(); } };
+$('btnKeys').onclick=()=>showModal('keysModal',true);
 $('zIn').onclick=()=>zoomAt(W/2,H/2,1.3); $('zOut').onclick=()=>zoomAt(W/2,H/2,1/1.3); $('zFit').onclick=fitView;
 
 /* ---------------- 頂部列 ---------------- */
