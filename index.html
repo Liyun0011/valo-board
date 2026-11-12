@@ -204,6 +204,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
     <span id="scopeChip" title="這套戰術存放的位置" style="font-size:12px;padding:3px 8px;border-radius:999px;background:var(--panel2);white-space:nowrap;cursor:pointer"></span>
     <input id="stratName" placeholder="戰術名稱" maxlength="60">
     <span id="saveStatus"></span>
+    <button class="ibtn" id="btnSyncNow" title="立即同步" style="display:none;min-width:30px;height:30px;font-size:15px">⟳</button>
     <span class="spacer"></span>
     <button class="ibtn" id="btnShare" title="分享這套戰術">🔗 分享</button>
     <button class="ibtn" id="btnImportTop" title="輸入隊友的分享碼">📥 匯入</button>
@@ -589,8 +590,10 @@ const b64enc = s => { const b=new TextEncoder().encode(s); let bin=''; for(let i
 const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,'')),c=>c.charCodeAt(0)));
 function ghUrl(c=GH){ return `https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/contents/${c.path}`; }
 function ghHeaders(c=GH){ return {'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}; }
-async function ghGet(c=GH){
-  const r = await fetch(ghUrl(c)+'?ref='+encodeURIComponent(c.branch)+'&t='+Date.now(), {headers:ghHeaders(c), cache:'no-store'});
+async function ghGet(c=GH, etag){
+  const h=ghHeaders(c); if(etag) h['If-None-Match']=etag;
+  const r = await fetch(ghUrl(c)+'?ref='+encodeURIComponent(c.branch), {headers:h, cache:'no-store'});
+  if(r.status===304) return {notModified:true};
   if(r.status===404){
     const rr = await fetch(`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}`, {headers:ghHeaders(c), cache:'no-store'});
     if(rr.status===404) throw new Error('找不到儲存庫，或權杖沒有這個儲存庫的權限');
@@ -602,7 +605,7 @@ async function ghGet(c=GH){
   if(r.status===403) throw new Error('權杖權限不足（403）：需要 Contents 的讀寫權限');
   if(!r.ok) throw new Error('GitHub 回應 '+r.status);
   const j = await r.json();
-  return {data: JSON.parse(b64dec(j.content)), sha:j.sha};
+  return {data: JSON.parse(b64dec(j.content)), sha:j.sha, etag:r.headers.get('ETag')};
 }
 async function ghPut(obj, sha, c=GH){
   const body = {message:'更新戰術 '+new Date().toLocaleString('zh-TW')+(c===GHT&&S.ui.nick?'（'+S.ui.nick+'）':''), content:b64enc(JSON.stringify(obj,null,1)), branch:c.branch};
@@ -611,6 +614,7 @@ async function ghPut(obj, sha, c=GH){
   if(r.status===409 || r.status===422){ const e=new Error('conflict'); e.conflict=true; throw e; }
   if(r.status===403||r.status===404) throw new Error('無法寫入（'+r.status+'）：權杖需要 Contents「Read and write」權限');
   if(!r.ok) throw new Error('GitHub 寫入失敗 '+r.status);
+  try{ return (await r.json()).content?.sha; }catch(e){ return null; }
 }
 function mergeMaps(a={}, b={}){
   const out = {};
@@ -668,19 +672,29 @@ async function teamSync(manual){
   if(tSyncing){ tSyncAgain=true; return; }
   tSyncing=true;
   try{
+    const last=S.teamLast||{};
     for(let attempt=0; attempt<3; attempt++){
-      const {data, sha} = await ghGet(GHT);
+      let {data, sha, etag, notModified} = await ghGet(GHT, attempt===0 ? last.etag : null);
+      if(notModified){
+        if(stable(S.team)===last.syncedStr) break;          // 雙方都沒變
+        data=last.data; sha=last.sha; etag=last.etag;
+      }
       const before = stable(curStrat()||null);
       const remote = data && data.strats ? data : {version:1, strats:{}};
       const merged = {version:1, strats:mergeMaps(S.team.strats, remote.strats)};
       Object.values(merged.strats).forEach(x=>{ if(x) x.scope='team'; });
       S.team = merged; lsSet(LS_TEAM, S.team);
       if(S.booted && (!stratById(S.curId) || stratById(S.curId).deleted)){ const l=liveStrats(); S.curId = l[0]?.id || newStrat().id; openStrat(S.curId); }
-      if(stable(curStrat())!==before && !S.shared){ renderAll(); }
+      if(stable(curStrat())!==before && !S.shared){
+        const cs=curStrat(); renderAll();
+        if(isTeam(cs) && cs.editedBy !== (S.ui.nick||'') && !manual) toast(`${cs.editedBy||'隊友'} 更新了這套戰術`);
+      }
       renderStratList();
       if(!data || stable(merged)!==stable({version:1, strats:remote.strats})){
-        try{ await ghPut(merged, sha, GHT); }catch(e){ if(e.conflict && attempt<2) continue; throw e; }
-      }
+        let nsha;
+        try{ nsha=await ghPut(merged, sha, GHT); }catch(e){ if(e.conflict && attempt<2) continue; throw e; }
+        S.teamLast={sha:nsha||null, data:JSON.parse(JSON.stringify(merged)), etag:null, syncedStr:stable(merged)};
+      } else S.teamLast={sha, data:JSON.parse(JSON.stringify(data)), etag, syncedStr:stable(merged)};
       break;
     }
     const t=new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
@@ -1330,6 +1344,8 @@ function moveStrat(id){
     persist(); renderStratList(); if(S.curId===id) renderAll(); toast(toTeam?'已移到共同戰術庫':'已移回私人');
   });
 }
+function updSyncBtn(){ $('btnSyncNow').style.display = (ghReady()||teamReady()) ? '' : 'none'; }
+$('btnSyncNow').onclick=async()=>{ const b=$('btnSyncNow'); b.disabled=true; b.style.opacity=.5; try{ await Promise.all([ghReady()?sync():null, teamReady()?teamSync():null]); toast('已同步到最新'); } finally{ b.disabled=false; b.style.opacity=1; } };
 $('scopeChip').onclick=()=>{ if(!S.shared) moveStrat(S.curId); };
 $('listMap').onchange=e=>{ const v=e.target.value; S.ui.listAll=(v==='all'); lsSet(LS_UI,S.ui); if(v!=='all') switchMap(v); renderStratList(); };
 $('scopeSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; S.ui.listScope=b.dataset.v; lsSet(LS_UI,S.ui); renderStratList(); };
@@ -1570,7 +1586,7 @@ $('ghSave').onclick=()=>{
   GH.owner=$('ghOwner').value.trim(); GH.repo=$('ghRepo').value.trim();
   const t=$('ghToken').value.trim(); if(t && !/^•+$/.test(t)) GH.token=t;
   if(!ghReady()){ $('syncMsg').textContent='請填完三個欄位'; return; }
-  lsSet(LS_GH,GH); $('ghToken').value='••••••••'; $('syncMsg').textContent='連線中…'; sync(true);
+  lsSet(LS_GH,GH); $('ghToken').value='••••••••'; $('syncMsg').textContent='連線中…'; sync(true); updSyncBtn();
 };
 $('ghSyncNow').onclick=()=>{ if(!ghReady()){ $('syncMsg').textContent='請先填寫並儲存'; return; } $('syncMsg').textContent='同步中…'; sync(true); };
 $('nickName').addEventListener('change',e=>{ S.ui.nick=e.target.value.trim(); lsSet(LS_UI,S.ui); });
@@ -1578,10 +1594,10 @@ $('ghtSave').onclick=()=>{
   GHT.owner=$('ghtOwner').value.trim(); GHT.repo=$('ghtRepo').value.trim();
   const t=$('ghtToken').value.trim(); if(t && !/^•+$/.test(t)) GHT.token=t;
   if(!teamReady()){ $('teamMsg').textContent='請填完組織名稱、儲存庫名稱和權杖'; return; }
-  lsSet(LS_GHT,GHT); $('ghtToken').value='••••••••'; $('teamMsg').textContent='連線中…'; teamSync(true).then(()=>{ S.ui.listScope='team'; lsSet(LS_UI,S.ui); renderStratList(); });
+  lsSet(LS_GHT,GHT); $('ghtToken').value='••••••••'; $('teamMsg').textContent='連線中…'; updSyncBtn(); teamSync(true).then(()=>{ S.ui.listScope='team'; lsSet(LS_UI,S.ui); renderStratList(); });
 };
-$('ghtForget').onclick=()=>{ GHT.token=''; lsSet(LS_GHT,GHT); $('ghtToken').value=''; $('teamMsg').textContent='已中斷（共同戰術的本機副本仍保留在這台裝置）'; renderStratList(); };
-$('ghForget').onclick=()=>{ GH.token=''; lsSet(LS_GH,GH); $('ghToken').value=''; $('syncMsg').textContent='已從這台裝置移除權杖（戰術仍保留在此裝置）'; setStatus('✓ 已儲存'); };
+$('ghtForget').onclick=()=>{ setTimeout(updSyncBtn,0); GHT.token=''; lsSet(LS_GHT,GHT); $('ghtToken').value=''; $('teamMsg').textContent='已中斷（共同戰術的本機副本仍保留在這台裝置）'; renderStratList(); };
+$('ghForget').onclick=()=>{ GH.token=''; lsSet(LS_GH,GH); $('ghToken').value=''; $('syncMsg').textContent='已從這台裝置移除權杖（戰術仍保留在此裝置）'; setStatus('✓ 已儲存'); updSyncBtn(); };
 $('btnReloadData').onclick=()=>{ try{ localStorage.removeItem(LS_CACHE); }catch(e){} location.reload(); };
 $('rotFix').onclick=()=>{ const m=curMap(); const cur=(S.db.mapRot[m.id]?.rot)||0; S.db.mapRot[m.id]={rot:(cur+90)%360, updatedAt:Date.now()}; persist(); renderAll(); };
 $('rotReset').onclick=()=>{ const m=curMap(); S.db.mapRot[m.id]={rot:0, updatedAt:Date.now()}; persist(); renderAll(); };
@@ -1661,13 +1677,13 @@ async function boot(){
   if(!list.length) lsSet(LS_DB,S.db);
   $('loading').style.display='none';
   fitView(); renderAgents(); renderAbilities(); openStrat(S.curId);
-  S.booted=true;
+  S.booted=true; updSyncBtn();
   setStatus(ghReady()?'☁ 準備同步…':'✓ 已儲存在此裝置');
   await checkHash();
   if(document.fonts?.ready) document.fonts.ready.then(()=>{ if(!S.userMoved) fitView(); });
   if(ghReady()) sync();
   setInterval(()=>{ if(document.visibilityState==='visible' && ghReady()) sync(); }, 90e3);
-  setInterval(()=>{ if(document.visibilityState==='visible' && teamReady()) teamSync(); }, 30e3);
+  setInterval(()=>{ if(document.visibilityState==='visible' && teamReady()) teamSync(); }, 10e3);
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && S.maps.length){ if(ghReady()) sync(); if(teamReady()) teamSync(); } });
 // 畫面大小改變（視窗縮放、工具列換行等）時，保持地圖中心與相對比例
