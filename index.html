@@ -67,6 +67,12 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .badge.ok{background:var(--ally);color:#06201d}
 #zoomCtl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;pointer-events:auto}
 #zoomCtl .ibtn{background:rgba(29,44,58,.9)}
+#agentPop{position:absolute;display:none;gap:4px;padding:5px;background:rgba(22,34,46,.97);border:1px solid var(--line);border-radius:10px;pointer-events:auto;box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:5}
+#agentPop button{width:52px;height:56px;border-radius:7px;background:var(--panel2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;border-bottom:3px solid var(--ac)}
+#agentPop button:hover{background:#26384a}
+#agentPop img{width:28px;height:28px;object-fit:contain;pointer-events:none}
+#agentPop .k{font-size:10px;font-weight:900;color:var(--dim)}
+#agentPop .nm{font-size:10px;max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
 #toast{position:absolute;left:50%;top:54px;transform:translateX(-50%);background:var(--text);color:var(--bg);font-weight:700;font-size:13px;padding:6px 14px;border-radius:999px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 #toast.show{opacity:1}
 /* dock */
@@ -255,6 +261,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
         <button class="tool" id="selDel" style="color:var(--red)">刪除</button>
       </div>
       <div id="shareBanner"><span id="shareText"></span><button class="tool primary" id="shareSave">存到我的戰術</button><button class="tool" id="shareClose">關閉</button></div>
+      <div id="agentPop"></div>
       <div id="toast"></div>
       <div id="loading"><b>載入地圖與特務資料中…</b><span>資料來源：valorant-api.com</span></div>
     </div>
@@ -742,6 +749,7 @@ function applyView(){
   const v=S.view; viewG.setAttribute('transform',`translate(${v.tx} ${v.ty}) scale(${v.s})`);
   $('calloutG').setAttribute('font-size', Math.max(5, Math.min(26, 13/v.s)));
   if(curStrat()) reqRender();
+  if(S.popFor) hideAgentPop();
 }
 function zoomAt(px,py,k){
   S.userMoved=true;
@@ -1053,6 +1061,7 @@ function showHint(t){ $('hint').style.display=t?'block':'none'; $('hintText').te
 function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1800); }
 
 svg.addEventListener('pointerdown', e=>{
+  hideAgentPop();
   if(!S.db || !curMap()) return;
   svg.setPointerCapture(e.pointerId);
   ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
@@ -1081,7 +1090,7 @@ svg.addEventListener('pointerdown', e=>{
   const hEl = e.target.closest('[data-handle]');
   if(hEl){ S.drag={kind:'handle', hk:hEl.dataset.hk||'end', id:hEl.dataset.handle, pre:snap()}; return; }
   if(S.pending){
-    const p=S.pending, o={id:uid(), type:p.type, x:r1(w.x), y:r1(w.y), team:S.ui.team};
+    const p=S.pending, o={id:uid(), type:p.type, x:r1(w.x), y:r1(w.y), team:p.team||S.ui.team};
     if(p.type==='agent') o.agent=p.agent;
     if(p.type==='ability'){ o.agent=p.agent; o.slot=p.slot; o.angle=Math.round(-90-viewRot());
       const pd=effDef(o);
@@ -1092,7 +1101,7 @@ svg.addEventListener('pointerdown', e=>{
     const pre=snap(); s.objects.push(o); pushHistory(pre); markDirty();
     S.selected=o.id; setPending(null);
     document.querySelectorAll('.abil,.agent-place,#btnSpike').forEach(b=>b.classList.remove('on'));
-    S.drag={kind:'move', id:o.id, w0:w, orig:JSON.parse(JSON.stringify(o)), pre:snap(), moved:false};
+    S.drag={kind:'move', id:o.id, w0:w, orig:JSON.parse(JSON.stringify(o)), pre:snap(), moved:false, placed:true};
     renderObjects(); return;
   }
   if(S.tool==='pen'){ const o={id:uid(),type:'pen',team:S.ui.team,pts:[[r1(w.x),r1(w.y)]]}; S.drag={kind:'draw', o, pre:snap()}; s.objects.push(o); reqRender(); return; }
@@ -1203,7 +1212,26 @@ function endPtr(e){
   }
   if(d.pre && snap()!==d.pre){ pushHistory(d.pre); markDirty(); }
   renderObjects();
+  if(d.kind==='move' && !d.moved && !d.placed){ const o=curStrat().objects.find(x=>x.id===d.id); if(o && o.type==='agent' && !S.shared) showAgentPop(o); }
 }
+/* 點地圖上的特務頭像：在旁邊跳出他的技能 */
+function hideAgentPop(){ const p=$('agentPop'); if(p) p.style.display='none'; S.popFor=null; }
+function showAgentPop(o){
+  const a=S.agentById[o.agent]; if(!a) return;
+  S.selAgent=a.id; renderAgents(); renderAbilities();
+  const pop=$('agentPop'), ac=agentColor(a);
+  pop.innerHTML=a.abilities.map(ab=>`<button data-pop="${ab.slot}" style="--ac:${ac}" title="${esc(ab.tw)}"><span class="k">${ab.key}</span><img src="${esc(ab.icon||'')}"><span class="nm">${esc(ab.tw)}</span></button>`).join('');
+  pop.style.display='flex'; S.popFor={agent:a.id, team:o.team||'ally', obj:o.id};
+  const pt=svg.createSVGPoint(); pt.x=o.x; pt.y=o.y; const c=pt.matrixTransform(worldG.getScreenCTM()), r=$('stage').getBoundingClientRect();
+  const pw=pop.offsetWidth, ph=pop.offsetHeight;
+  let x=c.x-r.left-pw/2, y=c.y-r.top+26; if(y+ph>r.height-8) y=c.y-r.top-26-ph;
+  pop.style.left=Math.max(8,Math.min(r.width-pw-8,x))+'px'; pop.style.top=Math.max(8,y)+'px';
+}
+$('agentPop').addEventListener('click',e=>{
+  const b=e.target.closest('[data-pop]'); if(!b||!S.popFor) return;
+  const a=S.agentById[S.popFor.agent], ab=a.abilities.find(x=>x.slot===b.dataset.pop), team=S.popFor.team;
+  hideAgentPop(); setPending({type:'ability', agent:a.id, slot:ab.slot, team}, ab.tw+(team==='enemy'?'（敵方）':'（我方）')); renderAbilities();
+});
 svg.addEventListener('pointerup', endPtr);
 svg.addEventListener('pointercancel', endPtr);
 svg.addEventListener('wheel', e=>{ e.preventDefault(); const p=toSvg(e.clientX,e.clientY); zoomAt(p.x,p.y,Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0015))); }, {passive:false});
@@ -1215,7 +1243,7 @@ document.addEventListener('keydown', e=>{
   if((e.key==='Delete'||e.key==='Backspace') && S.selected){ e.preventDefault(); deleteSelected(); }
   else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); }
   else if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); }
-  else if(e.key==='Escape'){ setTool('select'); S.selected=null; renderObjects(); }
+  else if(e.key==='Escape'){ hideAgentPop(); setTool('select'); S.selected=null; renderObjects(); }
 });
 
 /* ---------------- 底部工具列 ---------------- */
