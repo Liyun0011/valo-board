@@ -443,11 +443,11 @@ const ABIL = {
   // Omen
   'Dark Cover':{shape:'circle',r:4.1}, 'Paranoia':{shape:'rect',len:34,w:6},
   // Viper
-  'Snake Bite':{shape:'circle',r:4.5}, 'Poison Cloud':{shape:'circle',r:4.5}, 'Toxic Screen':{shape:'rect',len:50,w:1}, "Viper's Pit":{shape:'area'},
+  'Snake Bite':{shape:'circle',r:4.5}, 'Poison Cloud':{shape:'circle',r:4.5}, 'Toxic Screen':{shape:'rect',len:50,w:1}, "Viper's Pit":{shape:'circle',r:9},
   // Astra
   'Gravity Well':{shape:'circle',r:4.75}, 'Nova Pulse':{shape:'circle',r:4.75}, 'Nebula':{shape:'circle',r:4.75}, 'Astral Form / Cosmic Divide':{shape:'rect',len:100,w:1},
   // Harbor
-  'Cove':{shape:'circle',r:4.5}, 'Waveform':{shape:'circle',r:4.5}, 'High Tide':{shape:'curve',len:30,w:1,adjust:true,max:50}, 'Cascade':{shape:'rect',len:30,w:8}, 'Reckoning':{shape:'circle',r:17}, 'Storm Surge':{shape:'circle',r:6},
+  'Cove':{shape:'circle',r:4.5}, 'Waveform':{shape:'circle',r:4.5}, 'High Tide':{shape:'curve',len:30,w:1,adjust:true,max:50}, 'Cascade':{shape:'rect',len:30,w:8}, 'Reckoning':{shape:'rect',len:35,w:12}, 'Storm Surge':{shape:'circle',r:6},
   // Clove
   'Ruse':{shape:'circle',r:4.1}, 'Meddle':{shape:'circle',r:6},
   // Jett
@@ -485,7 +485,7 @@ const ABIL = {
   // Iso
   'Undercut':{shape:'line',len:40}, 'Contingency':{shape:'rect',len:30,w:6}, 'Kill Contract':{shape:'rect',len:30,w:7},
   // Tejo
-  'Guided Salvo':{shape:'circle',r:4.5}, 'Armageddon':{shape:'rect',len:40,w:8}, 'Special Delivery':{shape:'circle',r:5}, 'Stealth Drone':{shape:'circle',r:15},
+  'Guided Salvo':{shape:'circle',r:4.5}, 'Armageddon':{shape:'rect',len:40,w:8}, 'Special Delivery':{shape:'circle',r:5}, 'Stealth Drone':{shape:'path',max:30},
   // 補充（估計值，待校準）
   'Cosmic Divide':{shape:'rect',len:100,w:1}, 'Thrash':{shape:'path',max:25,endR:7}, 'Dizzy':{shape:'circle',r:15},
   'Barrier Mesh':{shape:'cross',len:10}, 'Showstopper':{shape:'circle',r:7}, 'Blast Pack':{shape:'circle',r:4},
@@ -495,7 +495,7 @@ const ABIL = {
   'Chokehold':{shape:'circle',r:6}, 'Saturate':{shape:'circle',r:6}, 'Convergent Paths':{shape:'rect',len:30,w:10}
 };
 /* 煙霧外觀（參考遊戲內煙霧球的配色）：技能英文名 → 樣式 */
-const SMOKE_LOOK = {'Ruse':'clove','Sky Smoke':'brim','Dark Cover':'omen','Nebula':'astra','Cove':'harbor','Waveform':'miks','Poison Cloud':'viper','Cloudburst':'jett','Cyber Cage':'cypher'};
+const SMOKE_LOOK = {'Ruse':'clove','Sky Smoke':'brim','Dark Cover':'omen','Nebula':'astra','Cove':'harbor','Waveform':'miks','Poison Cloud':'viper',"Viper's Pit":'viper','Cloudburst':'jett','Cyber Cage':'cypher'};
 const SMOKE_HL = {miks:'#fff3a0',brim:'#ffffff',omen:'#6b4fa0',astra:'#ffcc80',harbor:'#bff4ff',viper:'#e8ff9a',jett:'#ffffff',cypher:'#ffffff'};
 const SMOKE_RIM = {miks:'#4f7f9a',brim:'#d9853b',omen:'#4a3474',astra:'#a64dd6',harbor:'#1f5f9a',viper:'#1e5f3e',jett:'#8fb6d6',cypher:'#9aa6b2'};
 /* 非傷害技能（偵查、減速、補血、控制等）預設淡色顯示，可在設定裡逐個切換 */
