@@ -332,6 +332,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
         <p>單位都是公尺。技能範圍以「公尺」記錄，並依每張地圖的官方座標比例換算。這裡改的是預設大小；個別技能也可以在地圖上拖曳把手改大小（只影響那一個）。目前內建數值都是<b>未經驗證的估計值（待校準）</b>。沒有範圍的技能也可以在這裡自己選形狀。可以用「測距」工具對照遊戲內實際距離再修正；修改過的會標記為「自訂」並一起同步。</p>
         <div class="field"><label>選擇特務</label><select id="calAgent"></select></div>
         <div id="calList"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px"><button class="tool" id="calResetAll">↺ 全部技能還原預設</button><span class="hint" id="calCustomN" style="font-size:12px;color:var(--dim)"></span></div>
       </div>
       <div class="sec">
         <h3>🗺 自訂小地圖</h3>
@@ -1790,6 +1791,7 @@ function renderCalib(){
   if(!sel.options.length) sel.innerHTML=S.agents.map(a=>`<option value="${a.id}">${esc(a.tw)}（${esc(a.en)}）</option>`).join('');
   if(S.selAgent && !sel._touched) sel.value=S.selAgent;
   const a=S.agentById[sel.value]; if(!a) return;
+  updCalCount();
   $('calList').innerHTML = a.abilities.map(ab=>{
     const def=abilDef(ab.en), shape=def?def.shape:'none', custom=!!(S.db.calib[ab.en]&&S.db.calib[ab.en].v&&Object.keys(S.db.calib[ab.en].v).length);
     const opts=['none','circle','cone','rect','line','cross','curve','path','area'].map(x=>`<option value="${x}" ${x===shape?'selected':''}>${x==='none'?'無範圍（只顯示圖示）':SHAPE_NAME[x]}</option>`).join('');
@@ -1815,6 +1817,12 @@ $('calList').addEventListener('change', e=>{
   cur.v=Object.assign({},cur.v,{[i.dataset.k]:v}); cur.updatedAt=Date.now(); S.db.calib[en]=cur;
   persist(); renderCalib(); renderObjects(); renderAbilities();
 });
+function calCustomIds(){ return Object.keys(S.db.calib).filter(k=>{ const c=S.db.calib[k]; return c&&c.v&&Object.keys(c.v).length; }); }
+function updCalCount(){ const n=calCustomIds().length; $('calCustomN').textContent = n ? `目前有 ${n} 個技能是自訂的` : '目前全部都是預設值'; $('calResetAll').disabled=!n; }
+$('calResetAll').onclick=()=>{ const ids=calCustomIds(); if(!ids.length) return;
+  askConfirm(`把 ${ids.length} 個自訂過的技能全部還原成預設？（所有特務都會還原，地圖上個別拉過大小的技能不受影響）`, ()=>{
+    const now=Date.now(); ids.forEach(k=>{ S.db.calib[k]={v:{},updatedAt:now}; });
+    persist(); renderCalib(); renderObjects(); renderAbilities(); toast(`已還原 ${ids.length} 個技能`); }); };
 $('calList').addEventListener('click', e=>{ const b=e.target.closest('[data-calreset]'); if(!b) return; S.db.calib[b.dataset.calreset]={v:{},updatedAt:Date.now()}; persist(); renderCalib(); renderObjects(); renderAbilities(); });
 /* 對話框：buttons = [{label, primary, fn}]，最後自動加「取消」 */
 function askChoice(t, buttons){
