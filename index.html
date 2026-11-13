@@ -293,7 +293,7 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
       <button class="tool" id="btnDock" title="收合特務列，讓地圖更大">▾ 收合</button>
     </div>
     <div class="agentsWrap"><div class="seg" id="roleSeg"></div><button class="scrollBtn" data-scroll="-1" title="往左">‹</button><div class="row" id="agentRow"></div><button class="scrollBtn" data-scroll="1" title="往右">›</button></div>
-    <div class="row" id="abilityRow"><span class="empty">先選一位特務 → 再選技能 → 點地圖放置</span></div>
+    <div class="row" id="abilityRow"><span class="empty">點特務 → 直接點地圖放置；或再選技能放技能</span></div>
   </footer>
 </div>
 
@@ -1399,7 +1399,7 @@ document.querySelectorAll('.scrollBtn').forEach(b=>b.onclick=()=>{ const r=$('ag
 $('roleSeg').addEventListener('click',e=>{ const b=e.target.closest('[data-role]'); if(!b) return; S.ui.role=b.dataset.role; lsSet(LS_UI,S.ui); renderAgents(); $('agentRow').scrollLeft=0; });
 function renderAbilities(){
   const a=S.agentById[S.selAgent], row=$('abilityRow');
-  if(!a){ row.innerHTML='<span class="empty">先選一位特務 → 再選技能 → 點地圖放置</span>'; return; }
+  if(!a){ row.innerHTML='<span class="empty">點特務 → 直接點地圖放置；或再選技能放技能</span>'; return; }
   const p=S.pending;
   const ac=agentColor(a);
   let h = `<button class="abil agent-place${p&&p.type==='agent'?' on':''}" data-place-agent="${a.id}" style="--ac:${ac}"><img src="${esc(a.icon)}" style="border-radius:50%"><span class="n">${esc(a.tw)}<small>放置特務</small></span></button>`;
@@ -1412,8 +1412,13 @@ function renderAbilities(){
 }
 $('agentRow').addEventListener('click', e=>{
   const b=e.target.closest('[data-agent]'); if(!b) return;
-  S.selAgent = S.selAgent===b.dataset.agent ? null : b.dataset.agent;
-  setPending(null); renderAgents(); renderAbilities();
+  // 點特務 = 選他並直接進入「放置特務」；再點一次同一位 = 取消放置
+  const id=b.dataset.agent, a=S.agentById[id];
+  const placing = S.pending && S.pending.type==='agent' && S.pending.agent===id;
+  hideAgentPop();
+  if(placing){ setPending(null); }
+  else { S.selAgent=id; setPending({type:'agent', agent:id}, a.tw); }
+  renderAgents(); renderAbilities();
 });
 $('abilityRow').addEventListener('click', e=>{
   const a=S.agentById[S.selAgent]; if(!a) return;
