@@ -68,7 +68,7 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 #zoomCtl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;pointer-events:auto}
 #zoomCtl .ibtn{background:rgba(29,44,58,.9)}
 #agentPop{position:absolute;display:none;gap:4px;padding:5px;background:rgba(22,34,46,.97);border:1px solid var(--line);border-radius:10px;pointer-events:auto;box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:5}
-#agentPop button{width:52px;height:56px;border-radius:7px;background:var(--panel2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;border-bottom:3px solid var(--ac)}
+#agentPop button{width:46px;height:50px;border-radius:7px;background:var(--panel2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;border-bottom:3px solid var(--ac)}
 #agentPop button:hover{background:#26384a}
 #agentPop img{width:28px;height:28px;object-fit:contain;pointer-events:none}
 #agentPop .k{font-size:10px;font-weight:900;color:var(--dim)}
@@ -1272,7 +1272,7 @@ function showAgentPop(o){
   const a=S.agentById[o.agent]; if(!a) return;
   S.selAgent=a.id; renderAgents(); renderAbilities();
   const pop=$('agentPop'), ac=agentColor(a);
-  pop.innerHTML=a.abilities.map(ab=>`<button data-pop="${ab.slot}" style="--ac:${ac}" title="${esc(ab.tw)}"><span class="k">${ab.key}</span><img src="${esc(ab.icon||'')}"><span class="nm">${esc(ab.tw)}</span></button>`).join('');
+  pop.innerHTML=a.abilities.map(ab=>`<button data-pop="${ab.slot}" style="--ac:${ac}" title="${esc(ab.tw)}"><span class="k">${ab.key}</span><img src="${esc(ab.icon||'')}"></button>`).join('');
   pop.style.display='flex'; S.popFor={agent:a.id, team:o.team||'ally', obj:o.id};
   const pt=svg.createSVGPoint(); pt.x=o.x; pt.y=o.y; const c=pt.matrixTransform(worldG.getScreenCTM()), r=$('stage').getBoundingClientRect();
   const pw=pop.offsetWidth, ph=pop.offsetHeight;
