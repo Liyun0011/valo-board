@@ -277,12 +277,14 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
   <footer id="dock">
     <div class="row" id="toolRow">
       <button class="tool on" data-tool="select" title="選取／移動 (V)">✋<span class="lbl"> 選取</span></button>
+      <button class="tool" data-tool="box" title="框選（多選）(R)">⬚<span class="lbl"> 框選</span></button>
+      <span class="sep"></span>
       <button class="tool" data-tool="pen" title="畫筆 (B)">✏️<span class="lbl"> 畫筆</span></button>
       <button class="tool" data-tool="arrow" title="箭頭 (A)">➜<span class="lbl"> 箭頭</span></button>
-      <button class="tool" data-tool="ruler" title="測距（公尺）(M)">📏<span class="lbl"> 測距</span></button>
-      <button class="tool" data-tool="box" title="框選（多選）(R)">⬚<span class="lbl"> 框選</span></button>
       <button class="tool" data-tool="eraser" title="橡皮擦：擦畫筆和箭頭 (D)">🧽<span class="lbl"> 橡皮擦</span></button>
+      <span class="sep"></span>
       <button class="tool" id="btnSpike" title="放置 Spike (S)">◆<span class="lbl"> Spike</span></button>
+      <button class="tool" data-tool="ruler" title="測距（公尺）(M)">📏<span class="lbl"> 測距</span></button>
       <span class="sep"></span>
       <div class="seg team" id="teamSeg"><button data-v="ally">友方</button><button data-v="enemy">敵方</button></div>
       <span class="sep"></span>
@@ -1297,8 +1299,8 @@ document.addEventListener('gesturestart', e=>e.preventDefault());
 function deleteSelected(){ const ids=selIds(); if(!ids.length) return; S.selected=null; S.multi=[]; mutate(s=>{ s.objects=s.objects.filter(o=>!ids.includes(o.id)); }); }
 /* ---- 快捷鍵（可自訂，存在這台裝置） ---- */
 const KEY_ACTIONS=[
-  ['select','選取／移動','v'],['box','框選（多選）','r'],['pen','畫筆','b'],['arrow','箭頭','a'],['eraser','橡皮擦','d'],['ruler','測距','m'],
-  ['spike','放 Spike','s'],['agent','放選中的特務','g'],['abilC','技能 C','c'],['abilQ','技能 Q','q'],['abilE','技能 E','e'],['abilX','技能 X','x'],
+  ['select','選取／移動','v'],['box','框選（多選）','r'],['pen','畫筆','b'],['arrow','箭頭','a'],['eraser','橡皮擦','d'],
+  ['spike','放 Spike','s'],['ruler','測距','m'],['agent','放選中的特務','g'],['abilC','技能 C','c'],['abilQ','技能 Q','q'],['abilE','技能 E','e'],['abilX','技能 X','x'],
   ['team','切換我方／敵方','t'],['fit','地圖置中','f'],['zoomIn','放大','='],['zoomOut','縮小','-'],['help','快捷鍵表','?']];
 function keyMap(){ const m={}; KEY_ACTIONS.forEach(([id,,def])=>{ m[id]=(S.ui.keys&&S.ui.keys[id]!=null)?S.ui.keys[id]:def; }); return m; }
 function keyLabel(k){ return !k?'（無）': k===' '?'空白鍵': k==='='?'＋': k==='-'?'－': k.length===1?k.toUpperCase(): k; }
