@@ -1077,7 +1077,7 @@ function setTool(t){
   S.tool=t; S.pending=null; S.ruler=null; renderRuler();
   document.querySelectorAll('#toolRow [data-tool]').forEach(b=>b.classList.toggle('on', b.dataset.tool===t));
   document.querySelectorAll('.abil,#btnSpike').forEach(b=>b.classList.remove('on'));
-  const hints={box:'拖出一個框，框住的東西會被選起來', pen:'在地圖上拖曳畫線', arrow:'在地圖上拖曳畫箭頭', ruler:'拖曳量測距離（公尺）', eraser:'拖過畫筆線條或箭頭就能擦掉（特務和技能不會被擦到）'};
+  const hints={box:'拖出一個框來選取；按住選到的東西可一起拖移', pen:'在地圖上拖曳畫線', arrow:'在地圖上拖曳畫箭頭', ruler:'拖曳量測距離（公尺）', eraser:'拖過畫筆線條或箭頭就能擦掉（特務和技能不會被擦到）'};
   showHint(hints[t]||null);
   svg.classList.toggle('placing', t!=='select');
 }
@@ -1137,7 +1137,12 @@ svg.addEventListener('pointerdown', e=>{
   if(S.tool==='pen'){ const o={id:uid(),type:'pen',team:S.ui.team,pts:[[r1(w.x),r1(w.y)]]}; S.drag={kind:'draw', o, pre:snap()}; s.objects.push(o); reqRender(); return; }
   if(S.tool==='arrow'){ const o={id:uid(),type:'arrow',team:S.ui.team,x:r1(w.x),y:r1(w.y),x2:r1(w.x),y2:r1(w.y)}; S.drag={kind:'draw', o, pre:snap()}; s.objects.push(o); reqRender(); return; }
   if(S.tool==='eraser'){ S.drag={kind:'erase', pre:snap(), n:0}; eraseAt(e.clientX,e.clientY); return; }
-  if(S.tool==='box'){ S.drag={kind:'box', x0:e.clientX, y0:e.clientY}; return; }
+  if(S.tool==='box'){
+    // 框選模式下按到「已選取」的頭像／技能：直接整批拖移；按到其他地方才重新框選
+    const sel=selIds(), hit=e.target.closest('[data-id]');
+    if(hit && sel.includes(hit.dataset.id)){
+      S.drag={kind:'multimove', w0:w, origs:s.objects.filter(x=>sel.includes(x.id)).map(x=>JSON.parse(JSON.stringify(x))), pre:snap(), moved:false}; return; }
+    S.drag={kind:'box', x0:e.clientX, y0:e.clientY}; return; }
   if(S.tool==='ruler'){ S.ruler={x1:w.x,y1:w.y,x2:w.x,y2:w.y}; S.drag={kind:'ruler'}; renderRuler(); return; }
   const oEl = e.target.closest('[data-id]');
   if(oEl){
