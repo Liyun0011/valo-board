@@ -182,13 +182,14 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .modal.show{display:flex}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(560px,100%);max-height:calc(100% - 20px);display:flex;flex-direction:column}
 .card .ph{position:sticky;top:0}
-.card .body{overflow-y:auto;overscroll-behavior:contain;padding:14px;display:flex;flex-direction:column;gap:18px}
+.card .body{overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:14px;display:flex;flex-direction:column;gap:18px}
 .sec h3{margin:0 0 6px;font-size:14px}
 .sec p{margin:0 0 8px;color:var(--dim);font-size:12px;line-height:1.55}
 .field{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
 .field label{font-size:12px;color:var(--dim)}
-.field input,.field select{height:38px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:0 10px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field input,.field select{width:100%;min-width:0;box-sizing:border-box;height:38px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:0 10px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+@media (max-width:480px){ .grid2{grid-template-columns:minmax(0,1fr);gap:0} }
 .btns{display:flex;gap:6px;flex-wrap:wrap}
 #syncMsg{font-size:12px;margin-top:6px;color:var(--dim);white-space:pre-wrap}
 .cal{display:grid;grid-template-columns:28px minmax(0,1fr) 128px;align-items:center;gap:6px 10px;padding:8px 10px;background:var(--panel2);border-radius:8px;margin-bottom:6px}
