@@ -188,6 +188,13 @@ body.dockmin .agentsWrap, body.dockmin #abilityRow{display:none}
 .field{display:flex;flex-direction:column;gap:3px;margin-bottom:8px}
 .field label{font-size:12px;color:var(--dim)}
 .field input,.field select{width:100%;min-width:0;box-sizing:border-box;height:38px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:0 10px}
+.linkBox{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.6;color:var(--dim)}
+.linkBox b{color:var(--text,#e8edf2)}
+#linkCanvas{display:block;margin:6px auto 10px;width:min(280px,72vw);height:auto;image-rendering:pixelated;border-radius:8px}
+.linkOpts{display:flex;flex-direction:column;gap:6px;font-size:13px;margin:4px 0 10px}
+.linkOpts label{display:flex;align-items:center;gap:8px}
+.linkWarn{font-size:12px;line-height:1.6;color:#ffb4a8;background:rgba(255,70,85,.08);border:1px solid rgba(255,70,85,.3);border-radius:8px;padding:8px 10px;margin-bottom:10px}
+#cfmText{white-space:pre-line}
 .grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
 @media (max-width:480px){ .grid2{grid-template-columns:minmax(0,1fr);gap:0} }
 .btns{display:flex;gap:6px;flex-wrap:wrap}
@@ -356,6 +363,10 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
         <summary><span>🔒 個人設定：雲端同步</span><small id="syncSummary"></small></summary>
         <div style="margin-top:10px">
         
+        <div class="linkBox">
+          <b>📱 不想打權杖？</b>在已經設定好的裝置按「連結其他裝置」，新裝置用相機掃 QR code，或把連結傳給自己再點開，就會自動填好。
+          <div class="btns" style="margin-top:8px"><button class="tool primary" id="linkMake">📱 連結其他裝置</button><button class="tool" id="linkPaste">貼上連結</button></div>
+        </div>
         <p>戰術會一直自動存在這台裝置。填好下面資料後，也會自動同步到你的私人 GitHub 儲存庫，iPad 和電腦就能讀到同一份。存取權杖只存在這台裝置的瀏覽器裡，不會寫進網站程式碼。</p>
         <div class="grid2">
           <div class="field"><label>GitHub 帳號</label><input id="ghOwner" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="GitHub 帳號名"></div>
@@ -425,6 +436,19 @@ textarea{width:100%;height:160px;background:var(--bg);color:var(--text);border:1
     <div class="btns" style="justify-content:flex-end"><button class="tool" id="pmReset">還原預設</button><button class="tool" id="pmCancel">取消</button><button class="tool primary" id="pmOk">儲存</button></div></div>
   </div>
 </div>
+<div class="modal" id="linkModal">
+  <div class="card" style="width:min(420px,100%)">
+    <div class="ph"><h2>📱 連結其他裝置</h2><button class="ibtn" data-close>✕</button></div>
+    <div class="body">
+      <div class="linkWarn">⚠ 這個 QR code／連結裡有你的<b>存取權杖</b>，等於鑰匙。只給<b>你自己的裝置</b>用；傳連結時請傳給自己（LINE Keep、DC 私訊自己），<b>不要傳到群組或給隊友</b>。隊友要用他自己的權杖。</div>
+      <div class="linkOpts" id="linkOpts"></div>
+      <canvas id="linkCanvas"></canvas>
+      <p style="margin:0 0 10px;color:var(--dim);font-size:12px;line-height:1.6;text-align:center">手機：用相機掃描這個 QR code，打開網頁後按「套用」。<br>電腦（不能掃）：在手機按「分享連結」或「複製連結」傳給自己，再到電腦點開連結；或在電腦的設定按「貼上連結」。</p>
+      <div class="btns" style="justify-content:center"><button class="tool primary" id="linkShare">分享連結</button><button class="tool" id="linkCopy">複製連結</button></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="confirmModal">
   <div class="card" style="width:min(380px,100%)">
     <div class="cfm"><p id="cfmText"></p><div class="btns" id="cfmBtns" style="justify-content:flex-end"></div></div>
@@ -1697,6 +1721,7 @@ $('textFile').onclick=()=>{ const s=curStrat(); const data=JSON.stringify({valoS
 function shareFromJson(d){ return {id:'shared', origin:d.i||null, name:d.n||'分享的戰術', map:d.m, side:d.s==='def'?'def':'atk', objects:Array.isArray(d.o)?d.o:[], colors:(d.c&&typeof d.c==='object')?d.c:{}, updatedAt:Date.now()}; }
 async function openShareInput(text){
   text=(text||'').trim(); if(!text) throw new Error('empty');
+  if(text.includes('#link=')){ showModal('importModal',false); if(!applyLink(text)) throw new Error('link'); return; }
   let st;
   if(text[0]==='{'){ const d=JSON.parse(text); if(!d.o) throw new Error('fmt'); st=shareFromJson(d); }
   else { let code=text.includes('#s=')?text.split('#s=')[1]:text.replace(/^VALO:/i,''); code=code.replace(/\s/g,''); st=await unpackStrat(code); }
@@ -1711,7 +1736,9 @@ $('importShareFile').onchange=async e=>{ const f=e.target.files[0]; e.target.val
   try{ await openShareInput(await f.text()); showModal('importModal',false); }catch(err){ $('importMsg').textContent='✗ 這不是分享檔'; } };
 $('textShare').onclick=()=>{ navigator.share({title:curStrat()?.name||'VALO 戰術', url:S.shareUrl||$('textArea').value}).catch(()=>{}); };
 async function checkHash(){
-  const h=location.hash; if(!h.startsWith('#s=')) return false;
+  const h=location.hash;
+  if(h.startsWith('#link=')){ try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){} if(!applyLink(h)) toast('這個裝置連結無法使用'); return false; }
+  if(!h.startsWith('#s=')) return false;
   try{ const st=await unpackStrat(h.slice(3)); if(!S.mapById[st.map]) throw new Error('map'); enterShared(st); return true; }
   catch(e){ console.warn(e); toast('這個分享連結無法開啟'); return false; }
 }
@@ -1742,8 +1769,131 @@ $('shareSave').onclick=()=>{
   ]);
 };
 $('shareClose').onclick=()=>{ exitShared(); openStrat(S.curId); setStatus('✓ 已儲存'); };
-window.addEventListener('hashchange',()=>{ if(S.maps.length) checkHash(); });
+window.addEventListener('hashchange',()=>{ if(S.maps.length || location.hash.startsWith('#link=')) checkHash(); });
 
+/* ---------------- QR code 產生器（byte 模式，自己實作，不靠外部程式庫） ---------------- */
+const QR = (()=>{
+  const ECC = { // [每塊糾錯碼數, 塊數]，index = 版本
+    L:{fmt:1, cw:[-1,7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30],
+         nb:[-1,1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8,8,9,9,10,12,12,12,13,14,15,16,17,18,19,19,20,21,22,24,25]},
+    M:{fmt:0, cw:[-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26,26,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28],
+         nb:[-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16,17,17,18,20,21,23,25,26,28,29,31,33,35,37,38,40,43,45,47,49]}
+  };
+  const rawModules = v => { let r=(16*v+128)*v+64; if(v>=2){ const n=Math.floor(v/7)+2; r-=(25*n-10)*n-55; if(v>=7) r-=36; } return r; };
+  const dataCw = (v,e) => Math.floor(rawModules(v)/8) - ECC[e].cw[v]*ECC[e].nb[v];
+  const gmul = (x,y) => { let z=0; for(let i=7;i>=0;i--){ z=(z<<1)^((z>>>7)*0x11D); z^=((y>>>i)&1)*x; } return z&255; };
+  function rsDivisor(deg){ const r=new Array(deg).fill(0); r[deg-1]=1; let root=1;
+    for(let i=0;i<deg;i++){ for(let j=0;j<r.length;j++){ r[j]=gmul(r[j],root); if(j+1<r.length) r[j]^=r[j+1]; } root=gmul(root,2); } return r; }
+  function rsRem(data,div){ const r=div.map(()=>0); for(const b of data){ const f=b^r.shift(); r.push(0); div.forEach((c,i)=>r[i]^=gmul(c,f)); } return r; }
+  function alignPos(v,size){ if(v===1) return []; const n=Math.floor(v/7)+2; const step=(v===32)?26:Math.ceil((v*4+4)/(n*2-2))*2;
+    const r=[6]; for(let p=size-7; r.length<n; p-=step) r.splice(1,0,p); return r; }
+
+  function encode(bytes, ecl='M'){
+    let v=1; for(;v<=40;v++){ const cc=v<=9?8:16; if(4+cc+bytes.length*8 <= dataCw(v,ecl)*8) break; }
+    if(v>40) throw new Error('資料太長');
+    const cap=dataCw(v,ecl)*8, bits=[]; const put=(val,n)=>{ for(let i=n-1;i>=0;i--) bits.push((val>>>i)&1); };
+    put(4,4); put(bytes.length, v<=9?8:16); bytes.forEach(b=>put(b,8));
+    put(0, Math.min(4, cap-bits.length)); put(0, (8-bits.length%8)%8);
+    for(let p=0xEC; bits.length<cap; p^=0xEC^0x11) put(p,8);
+    const data=[]; for(let i=0;i<bits.length;i+=8){ let b=0; for(let j=0;j<8;j++) b=(b<<1)|bits[i+j]; data.push(b); }
+    // 糾錯碼與交錯
+    const nb=ECC[ecl].nb[v], el=ECC[ecl].cw[v], raw=Math.floor(rawModules(v)/8), nShort=nb-raw%nb, shortLen=Math.floor(raw/nb), div=rsDivisor(el);
+    const blocks=[]; for(let i=0,k=0;i<nb;i++){ const d=data.slice(k,k+shortLen-el+(i<nShort?0:1)); k+=d.length; const e=rsRem(d,div); if(i<nShort) d.push(0); blocks.push(d.concat(e)); }
+    const cw=[]; for(let i=0;i<blocks[0].length;i++) blocks.forEach((b,j)=>{ if(i!==shortLen-el || j>=nShort) cw.push(b[i]); });
+    // 畫面
+    const size=v*4+17, M=[...Array(size)].map(()=>new Array(size).fill(false)), F=[...Array(size)].map(()=>new Array(size).fill(false));
+    const fn=(x,y,d)=>{ M[y][x]=d; F[y][x]=true; };
+    for(let i=0;i<size;i++){ fn(6,i,i%2===0); fn(i,6,i%2===0); }
+    [[3,3],[size-4,3],[3,size-4]].forEach(([x,y])=>{ for(let dy=-4;dy<=4;dy++) for(let dx=-4;dx<=4;dx++){ const d=Math.max(Math.abs(dx),Math.abs(dy)), xx=x+dx, yy=y+dy;
+      if(xx>=0&&xx<size&&yy>=0&&yy<size) fn(xx,yy,d!==2&&d!==4); } });
+    const ap=alignPos(v,size), L=ap.length;
+    for(let i=0;i<L;i++) for(let j=0;j<L;j++){ if((i===0&&j===0)||(i===0&&j===L-1)||(i===L-1&&j===0)) continue;
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++) fn(ap[i]+dx,ap[j]+dy,Math.max(Math.abs(dx),Math.abs(dy))!==1); }
+    const drawFormat=mask=>{ const d=(ECC[ecl].fmt<<3)|mask; let r=d; for(let i=0;i<10;i++) r=(r<<1)^((r>>>9)*0x537);
+      const b=((d<<10)|r)^0x5412, g=i=>((b>>>i)&1)===1;
+      for(let i=0;i<=5;i++) fn(8,i,g(i)); fn(8,7,g(6)); fn(8,8,g(7)); fn(7,8,g(8)); for(let i=9;i<15;i++) fn(14-i,8,g(i));
+      for(let i=0;i<8;i++) fn(size-1-i,8,g(i)); for(let i=8;i<15;i++) fn(8,size-15+i,g(i)); fn(8,size-8,true); };
+    drawFormat(0);
+    if(v>=7){ let r=v; for(let i=0;i<12;i++) r=(r<<1)^((r>>>11)*0x1F25); const b=(v<<12)|r;
+      for(let i=0;i<18;i++){ const bit=((b>>>i)&1)===1, a=size-11+i%3, c=Math.floor(i/3); fn(a,c,bit); fn(c,a,bit); } }
+    let i=0; for(let right=size-1; right>=1; right-=2){ if(right===6) right=5;
+      for(let vert=0;vert<size;vert++) for(let j=0;j<2;j++){ const x=right-j, up=((right+1)&2)===0, y=up?size-1-vert:vert;
+        if(!F[y][x] && i<cw.length*8){ M[y][x]=((cw[i>>>3]>>>(7-(i&7)))&1)===1; i++; } } }
+    const maskFn=[(x,y)=>(x+y)%2===0,(x,y)=>y%2===0,(x,y)=>x%3===0,(x,y)=>(x+y)%3===0,(x,y)=>(Math.floor(x/3)+Math.floor(y/2))%2===0,
+      (x,y)=>x*y%2+x*y%3===0,(x,y)=>(x*y%2+x*y%3)%2===0,(x,y)=>((x+y)%2+x*y%3)%2===0];
+    const applyMask=m=>{ for(let y=0;y<size;y++) for(let x=0;x<size;x++) if(!F[y][x]&&maskFn[m](x,y)) M[y][x]=!M[y][x]; };
+    const penalty=()=>{ let p=0, dark=0;
+      for(let a=0;a<size;a++){ for(const hz of [true,false]){ let run=1; for(let b=1;b<size;b++){ const c=hz?M[a][b]:M[b][a], pc=hz?M[a][b-1]:M[b-1][a];
+        if(c===pc){ run++; if(run===5) p+=3; else if(run>5) p++; } else run=1; } } }
+      for(let y=0;y<size-1;y++) for(let x=0;x<size-1;x++){ const c=M[y][x]; if(c===M[y][x+1]&&c===M[y+1][x]&&c===M[y+1][x+1]) p+=3; }
+      for(let y=0;y<size;y++) for(let x=0;x<size;x++) if(M[y][x]) dark++;
+      p+=Math.floor(Math.abs(dark*20-size*size*10)/(size*size))*10; return p; };
+    let best=0, bestP=Infinity;
+    for(let m=0;m<8;m++){ applyMask(m); drawFormat(m); const p=penalty(); if(p<bestP){ bestP=p; best=m; } applyMask(m); }
+    applyMask(best); drawFormat(best);
+    return {size, get:(x,y)=>M[y][x], version:v};
+  }
+  function toCanvas(text, canvas, px=6){
+    const q=encode([...new TextEncoder().encode(text)]), quiet=4, n=q.size+quiet*2;
+    canvas.width=canvas.height=n*px; const g=canvas.getContext('2d');
+    g.fillStyle='#fff'; g.fillRect(0,0,n*px,n*px); g.fillStyle='#000';
+    for(let y=0;y<q.size;y++) for(let x=0;x<q.size;x++) if(q.get(x,y)) g.fillRect((x+quiet)*px,(y+quiet)*px,px,px);
+    return q;
+  }
+  return {encode, toCanvas};
+})();
+
+/* ---------------- 連結其他裝置（用 QR code／連結帶入同步設定，不用手打權杖） ---------------- */
+const b64uEnc = s => { const b=new TextEncoder().encode(s); let t=''; b.forEach(c=>t+=String.fromCharCode(c)); return btoa(t).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+const b64uDec = s => { s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; const t=atob(s); return new TextDecoder().decode(Uint8Array.from(t,c=>c.charCodeAt(0))); };
+let linkUrl='';
+function renderLinkModal(){
+  const box=$('linkOpts'), opts=[];
+  if(ghReady()) opts.push(`<label><input type="checkbox" id="linkGh" checked> 🔒 私人雲端同步（${esc(GH.owner)}/${esc(GH.repo)}）</label>`);
+  if(teamReady()) opts.push(`<label><input type="checkbox" id="linkGht" checked> 👥 隊伍共同戰術庫（${esc(GHT.owner)}/${esc(GHT.repo)}）</label>`);
+  box.innerHTML=opts.join('');
+  box.querySelectorAll('input').forEach(i=>i.onchange=drawLink);
+  drawLink();
+}
+function drawLink(){
+  const p={v:1}, wantGh=$('linkGh')?.checked, wantGht=$('linkGht')?.checked;
+  if(wantGh) p.gh={o:GH.owner, r:GH.repo, t:GH.token};
+  if(wantGht) p.ght={o:GHT.owner, r:GHT.repo, t:GHT.token};
+  if(S.ui.nick) p.n=S.ui.nick;
+  const any=wantGh||wantGht; $('linkCanvas').style.visibility=any?'':'hidden'; $('linkShare').disabled=$('linkCopy').disabled=!any;
+  linkUrl = location.origin+location.pathname+'#link='+b64uEnc(JSON.stringify(p));
+  if(any) QR.toCanvas(linkUrl, $('linkCanvas'), 6);
+}
+$('linkMake').onclick=()=>{
+  if(!ghReady() && !teamReady()){ toast('這台裝置還沒設定同步，請在已經設定好的裝置上按這個按鈕'); return; }
+  renderLinkModal(); showModal('linkModal',true);
+};
+$('linkCopy').onclick=async()=>{ try{ await navigator.clipboard.writeText(linkUrl); toast('已複製，請只傳給自己'); }catch(e){ toast('無法複製，請改用「分享連結」'); } };
+$('linkShare').onclick=()=>{ if(navigator.share) navigator.share({title:'VALO 戰術板：連結裝置', url:linkUrl}).catch(()=>{}); else $('linkCopy').onclick(); };
+$('linkPaste').onclick=async()=>{
+  let t=''; try{ t=await navigator.clipboard.readText(); }catch(e){}
+  if(!t.includes('#link=')){ askText('貼上連結（另一台裝置「連結其他裝置」產生的）','', '', v=>{ if(!applyLink(v)) toast('這不是裝置連結'); }, {hideDefault:true, resetLabel:null}); return; }
+  applyLink(t);
+};
+function applyLink(text){
+  let p; try{ p=JSON.parse(b64uDec(String(text).split('#link=')[1].trim().replace(/\s/g,''))); }catch(e){ return false; }
+  if(!p || (!p.gh && !p.ght)) return false;
+  const lines=['要在這台裝置套用這些同步設定嗎？',''];
+  if(p.gh) lines.push(`🔒 私人：${p.gh.o}/${p.gh.r}`);
+  if(p.ght) lines.push(`👥 隊伍：${p.ght.o}/${p.ght.r}`);
+  if(p.n) lines.push(`名字：${p.n}`);
+  lines.push('','這台裝置原本的戰術會保留，並和雲端合併。');
+  askChoice(lines.join('\n'), [{label:'套用', primary:true, fn:()=>{
+    if(p.gh){ GH.owner=p.gh.o; GH.repo=p.gh.r; GH.token=p.gh.t; lsSet(LS_GH,GH); }
+    if(p.ght){ GHT.owner=p.ght.o; GHT.repo=p.ght.r; GHT.token=p.ght.t; lsSet(LS_GHT,GHT); }
+    if(p.n && !S.ui.nick){ S.ui.nick=p.n; lsSet(LS_UI,S.ui); }
+    updSyncBtn(); toast('已套用，正在同步…');
+    if(ghReady()) sync(true);
+    if(teamReady()) teamSync(true).then(()=>renderStratList());
+    showModal('settingsModal',false);
+  }}]);
+  return true;
+}
 /* ---------------- 匯出 / 匯入 ---------------- */
 $('btnExport').onclick=()=>{
   $('textShare').style.display='none'; $('textCode').style.display='none'; $('textFile').style.display='none'; $('textCopy').textContent='複製'; $('textArea').style.height='';
