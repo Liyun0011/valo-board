@@ -1264,7 +1264,7 @@ function endPtr(e){
   }
   if(d.pre && snap()!==d.pre){ pushHistory(d.pre); markDirty(); }
   renderObjects();
-  if(d.kind==='move' && !d.moved && !d.placed){ const o=curStrat().objects.find(x=>x.id===d.id); if(o && o.type==='agent' && !S.shared) showAgentPop(o); }
+  if(d.kind==='move' && (d.placed || !d.moved)){ const o=curStrat().objects.find(x=>x.id===d.id); if(o && o.type==='agent' && !S.shared) showAgentPop(o); }
 }
 /* 點地圖上的特務頭像：在旁邊跳出他的技能 */
 function hideAgentPop(){ const p=$('agentPop'); if(p) p.style.display='none'; S.popFor=null; }
